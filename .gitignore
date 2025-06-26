@@ -3,3 +3,10 @@ build
 live2d_tool.spec
 .idea/
 output/
+color_transfer.ico
+color_transfer.png
+icon.ico
+icon.png
+config.json
+color_transfer.spec
+mtn.json

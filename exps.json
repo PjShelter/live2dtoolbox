@@ -1,0 +1,37 @@
+{
+  "left_face": [
+    "PARAM_EYE_L_OPEN",
+    "PARAM_BROW_L_Y",
+    "PARAM_BROW_L_X",
+    "PARAM_BROW_L_ANGLE",
+    "PARAM_BROW_L_FORM",
+    "PARAM_EYE_L_SMILE"
+  ],
+  "right_face": [
+    "PARAM_EYE_R_OPEN",
+    "PARAM_BROW_R_Y",
+    "PARAM_BROW_R_X",
+    "PARAM_BROW_R_ANGLE",
+    "PARAM_BROW_R_FORM",
+    "PARAM_EYE_R_SMILE"
+  ],
+  "center_face": [
+
+  ],
+  "uncategorized": [
+    "PARAM_MOUTH_FORM_01",
+    "PARAM_EYE_HIGHLIGHT",
+    "PARAM_HAIR_FRONT",
+    "PARAM_EYE_BALL_X",
+    "PARAM_EYE_BALL_Y",
+    "PARAM_EYE_FORM",
+    "PARAM_EYE_SCALE",
+    "PARAM_MOUTH_OPEN_Y",
+    "PARAM_MOUTH_OPEN_Y_MANUAL",
+    "PARAM_MOUTH_SWITCH",
+    "PARAM_MOUTH_FORM_Y",
+    "PARAM_MOUTH_SCALE",
+    "PARAM_CHEEK",
+    "PARAM_CHEEK2"
+  ]
+}

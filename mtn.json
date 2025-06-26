@@ -1,0 +1,35 @@
+{
+  "left_hand": [
+    "PARAM_HAND_L_01_001",
+    "PARAM_HAND_L_02_001",
+    "PARAM_HAND_L_03_001",
+    "PARAM_HAND_L_04_001",
+    "PARAM_HAND_L_05_001",
+    "PARAM_HAND_L_06_001",
+    "PARAM_HAND_L_07_001"
+  ],
+  "right_hand": [
+    "PARAM_HAND_R_01_001",
+    "PARAM_HAND_R_02_001",
+    "PARAM_HAND_R_03_001",
+    "PARAM_HAND_R_04_001",
+    "PARAM_HAND_R_05_001",
+    "PARAM_HAND_R_06_001",
+    "PARAM_HAND_R_09_001"
+  ],
+  "left_arm": [
+    "PARAM_ARM_L_01_001",
+    "PARAM_ARM_L_01_002",
+    "PARAM_ARM_L_01_003",
+    "PARAM_ARM_L_CHANGE"
+  ],
+  "right_arm": [
+    "PARAM_ARM_R_01_001",
+    "PARAM_ARM_R_01_002",
+    "PARAM_ARM_R_01_003",
+    "PARAM_ARM_R_CHANGE"
+  ],
+  "upper_body": [
+    "PARAM_UPPER_BODY"
+  ]
+}
