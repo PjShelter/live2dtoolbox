@@ -6,17 +6,46 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QMessageBox, QComboBox, QTextEdit,
     QGroupBox, QLineEdit, QFormLayout
 )
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QIcon
 from PIL import Image
 from live2d_tool import remove_duplicates_and_check_files, scan_live2d_directory, update_model_json_bulk, \
     batch_update_mtn_param_text
-from color_transfer import match_color, extract_webgal_rgb
+from color_transfer import match_color, extract_webgal_full_transform, visualize, plot_parameter_comparison
 
 CONFIG_PATH = "config.json"
+
+
+class Float2Encoder(json.JSONEncoder):
+    def iterencode(self, o, _one_shot=False):
+        for s in super().iterencode(o, _one_shot=_one_shot):
+            yield s.replace(".0,", ".00,").replace(".0}", ".00}")  # 保底小数位
+            yield s
+
+
+def format_transform_code(params: dict) -> str:
+    def fmt(v):
+        if isinstance(v, float):
+            return round(v, 2)
+        return v
+
+    fixed = {k: fmt(v) for k, v in params.items()}
+    return f'setTransform:{json.dumps(fixed, separators=(",", ":"), ensure_ascii=False)} -target=bg-main -duration=0 -next;'
+
 
 class ToolBox(QWidget):
     def __init__(self):
         super().__init__()
+        # ✅ 设置图标（兼容打包后路径）
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.abspath(".")
+
+        icon_path = os.path.join(base_path, "icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        else:
+            print("⚠️ icon.png 图标未找到！")
         self.setWindowTitle("Live2D 工具箱 - 东山燃灯")
         self.resize(900, 1000)  # 初始窗口大小
         self.setMinimumSize(700, 600)  # 可选：防止太小导致排版错乱
@@ -52,6 +81,11 @@ class ToolBox(QWidget):
         self.target_label.setFixedSize(220, 160)
         self.result_label = QLabel("匹配结果")
         self.result_label.setFixedSize(220, 160)
+
+        self.compare_btn = QPushButton("显示对比图表")
+        self.compare_btn.setMinimumWidth(300)
+        self.compare_btn.clicked.connect(self.show_comparison)
+        color_layout.addWidget(self.compare_btn)
 
         preview_layout.addWidget(self.source_label)
         preview_layout.addWidget(self.target_label)
@@ -140,6 +174,15 @@ class ToolBox(QWidget):
 
         self.load_last_config()
 
+    def show_comparison(self):
+        try:
+            if not hasattr(self, "_source_img") or not hasattr(self, "_target_img"):
+                QMessageBox.warning(self, "未找到图像", "请先执行色彩匹配")
+                return
+            plot_parameter_comparison(self._source_img, self._target_img)
+        except Exception as e:
+            QMessageBox.critical(self, "出错", f"无法显示对比图：\n{str(e)}")
+
     def load_last_config(self):
         if os.path.exists(CONFIG_PATH):
             try:
@@ -214,19 +257,23 @@ class ToolBox(QWidget):
         target = Image.open(self.target_path).convert("RGB").resize(source.size)
 
         matched = match_color(source, target)
-        output_dir = "output"
-        os.makedirs(output_dir, exist_ok=True)
+        source_dir = os.path.dirname(self.source_path)
         src = os.path.splitext(os.path.basename(self.source_path))[0]
         tgt = os.path.splitext(os.path.basename(self.target_path))[0]
-        out_path = os.path.join(output_dir, f"matched_{src}_{tgt}.png")
+        out_path = os.path.join(source_dir, f"matched_{src}_{tgt}.png")
         matched.save(out_path)
 
         self.result_path = out_path
         self.result_label.setPixmap(QPixmap(out_path).scaled(200, 160))
 
-        webgal = extract_webgal_rgb(source, target)
-        self.webgal_output.setText(f'setTransform:{json.dumps(webgal)} -target=bg-main -duration=0 -next;')
+        webgal = extract_webgal_full_transform(source, target)
+        self.webgal_output.setText(format_transform_code(webgal))
         QMessageBox.information(self, "完成", f"已保存匹配图像到：{out_path}")
+
+        # 对比图
+        self._source_img = source
+        self._target_img = target
+        self._matched_img = matched
 
     def generate_model_json(self):
         initial_dir = os.path.dirname(self.batch_model_json_path) if hasattr(self, "batch_model_json_path") else ""

@@ -6,8 +6,8 @@ import matplotlib
 import json
 matplotlib.use('TkAgg')
 
-def match_color(source: Image.Image, target: Image.Image) -> Image.Image:
 
+def match_color(source: Image.Image, target: Image.Image) -> Image.Image:
     source_array = np.asarray(source).astype(np.float32)
     target_array = np.asarray(target).astype(np.float32)
 
@@ -21,24 +21,54 @@ def match_color(source: Image.Image, target: Image.Image) -> Image.Image:
 
     return Image.fromarray(matched.astype(np.uint8))
 
-def extract_webgal_rgb(source: Image.Image, target: Image.Image) -> dict:
-    """
-    对比源图与目标图的 RGB 平均亮度，生成 WebGAL 的 RGB 参数。
-    每个 color 通道从默认 255 减去与源图的亮度差异。
-    """
-    source_array = np.asarray(source).astype(np.float32)
-    target_array = np.asarray(target).astype(np.float32)
 
-    webgal_rgb = {}
+def extract_webgal_full_transform(source: Image.Image, target: Image.Image) -> dict:
+    source_np = np.asarray(source).astype(np.float32) / 255.0
+    target_np = np.asarray(target).astype(np.float32) / 255.0
+
+    # 亮度
+    src_lum = source_np.mean()
+    tgt_lum = target_np.mean()
+    brightness = tgt_lum / src_lum if src_lum > 1e-6 else 1.0
+
+    # 对比度
+    src_contrast = source_np.std()
+    tgt_contrast = target_np.std()
+    contrast = tgt_contrast / src_contrast if src_contrast > 1e-6 else 1.0
+
+    # 饱和度
+    def rgb_to_saturation(rgb):
+        maxc = rgb.max(axis=2)
+        minc = rgb.min(axis=2)
+        sat = (maxc - minc) / (maxc + 1e-6)
+        return np.mean(sat)
+
+    saturation = rgb_to_saturation(target_np) / rgb_to_saturation(source_np)
+
+    # 伽马
+    def estimate_gamma(img_np):
+        img_np = np.clip(img_np, 1e-6, 1.0)
+        return np.log(img_np.mean()) / np.log(0.5)
+
+    gamma = estimate_gamma(target_np) / estimate_gamma(source_np)
+
+    # RGB 差值
+    source_array = (source_np * 255).astype(np.float32)
+    target_array = (target_np * 255).astype(np.float32)
+
+    rgb_adjust = {}
     for c, key in enumerate(["colorRed", "colorGreen", "colorBlue"]):
         src_mean = source_array[..., c].mean()
         tgt_mean = target_array[..., c].mean()
+        rgb_adjust[key] = int(255 - (src_mean - tgt_mean))  # 允许超出 255
 
-        # 模拟 WebGAL 从默认 255 削减亮度差（目标更暗，则数值更小）
-        value = 255 - (src_mean - tgt_mean)
-        webgal_rgb[key] = int(np.clip(value, 0, 255))
-
-    return webgal_rgb
+    return {
+        "brightness": float(round(brightness, 2)),
+        "contrast": float(round(contrast, 2)),
+        "saturation": float(round(saturation, 2)),
+        "gamma": float(round(gamma, 2)),
+        **{k: int(v) for k, v in rgb_adjust.items()}
+    }
 
 
 def visualize(source, target, matched):
@@ -61,6 +91,53 @@ def visualize(source, target, matched):
 
     plt.tight_layout()
     plt.show()
+def plot_parameter_comparison(source: Image.Image, target: Image.Image):
+    source_np = np.asarray(source).astype(np.float32) / 255.0
+    target_np = np.asarray(target).astype(np.float32) / 255.0
+
+    def get_metrics(img_np):
+        brightness = img_np.mean()
+        contrast = img_np.std()
+
+        def rgb_to_saturation(rgb):
+            maxc = rgb.max(axis=2)
+            minc = rgb.min(axis=2)
+            sat = (maxc - minc) / (maxc + 1e-6)
+            return np.mean(sat)
+
+        saturation = rgb_to_saturation(img_np)
+
+        def estimate_gamma(img_np):
+            img_np = np.clip(img_np, 1e-6, 1.0)
+            return np.log(img_np.mean()) / np.log(0.5)
+
+        gamma = estimate_gamma(img_np)
+
+        rgb_mean = [img_np[..., c].mean() for c in range(3)]
+        return [brightness, contrast, saturation, gamma] + rgb_mean
+
+    source_metrics = get_metrics(source_np)
+    target_metrics = get_metrics(target_np)
+
+    labels = [
+        "Brightness", "Contrast", "Saturation", "Gamma",
+        "Red Mean", "Green Mean", "Blue Mean"
+    ]
+
+    x = np.arange(len(labels))
+    width = 0.35
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(x - width / 2, source_metrics, width, label='Source', color='skyblue')
+    plt.bar(x + width / 2, target_metrics, width, label='Target', color='salmon')
+    plt.xticks(x, labels, rotation=20)
+    plt.ylabel("Normalized Value")
+    plt.title("Image Metrics Comparison")
+    plt.legend()
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.tight_layout()
+    plt.show()
+
 
 def main():
     print("制作者：东山燃灯寺")
@@ -104,15 +181,17 @@ def main():
     matched_img.save(output_path)
     print(f"\n✅ Color matching done. Saved to: {output_path}")
 
-    # ✅ 输出 WebGAL 转换指令
-    webgal_rgb = extract_webgal_rgb(source_img,target_img)
-    webgal_code = f'setTransform:{json.dumps(webgal_rgb)} -target=bg-main -duration=0 -next;'
+    # ✅ 输出完整 WebGAL 转换指令
+    transform_params = extract_webgal_full_transform(source_img, target_img)
+    webgal_code = f'setTransform:{json.dumps(transform_params)} -target=bg-main -duration=0 -next;'
     print("\n🎬 Suggested WebGAL Transform Command:")
     print(webgal_code)
 
     preview = input("📷 Preview result? (y/n): ").strip().lower()
     if preview.startswith("y"):
         visualize(source_img, target_img, matched_img)
+        plot_parameter_comparison(source_img, target_img)
+
 
 if __name__ == "__main__":
     main()
