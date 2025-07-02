@@ -64,11 +64,12 @@ def extract_webgal_full_transform(source: Image.Image, target: Image.Image) -> d
 
     return {
         "brightness": float(round(brightness, 2)),
-        "contrast": float(round(contrast, 2)),
-        "saturation": float(round(saturation, 2)),
-        "gamma": float(round(gamma, 2)),
+        "contrast": float(round(np.power(contrast, 0.6), 2)),
+        "saturation": float(round(np.clip(saturation, 0.0, 2.0), 2)),
+        "gamma": float(round(np.clip(np.sqrt(1.0 / gamma), 0.5, 2.0), 2)),
         **{k: int(v) for k, v in rgb_adjust.items()}
     }
+
 
 
 def visualize(source, target, matched):

@@ -29,7 +29,12 @@ def format_transform_code(params: dict) -> str:
         return v
 
     fixed = {k: fmt(v) for k, v in params.items()}
-    return f'setTransform:{json.dumps(fixed, separators=(",", ":"), ensure_ascii=False)} -target=bg-main -duration=0 -next;'
+    rgb_only = {k: v for k, v in fixed.items() if k.startswith("color")}
+    full_line = f'setTransform:{json.dumps(fixed, separators=(",", ":"), ensure_ascii=False)} -target=bg-main -duration=0 -next;'
+    rgb_line = f'setTransform:{json.dumps(rgb_only, separators=(",", ":"), ensure_ascii=False)} -target=bg-main -duration=0 -next;'
+    note = "⚠️ 完整参数匹配可能存在偏差，仅 RGB 值较为稳定"
+    return f"{full_line}\n{rgb_line}\n{note}"
+
 
 
 class ToolBox(QWidget):
