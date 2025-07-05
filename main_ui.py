@@ -11,7 +11,7 @@ from PIL import Image
 from live2d_tool import remove_duplicates_and_check_files, scan_live2d_directory, update_model_json_bulk, \
     batch_update_mtn_param_text
 from color_transfer import match_color, extract_webgal_full_transform, visualize, plot_parameter_comparison
-
+from gen_jsonl import collect_jsons_to_jsonl
 CONFIG_PATH = "config.json"
 
 
@@ -52,7 +52,7 @@ class ToolBox(QWidget):
         else:
             print("⚠️ icon.png 图标未找到！")
         self.setWindowTitle("Live2D 工具箱 - 东山燃灯")
-        self.resize(900, 1000)  # 初始窗口大小
+        self.resize(900, 1200)  # 初始窗口大小
         self.setMinimumSize(700, 600)  # 可选：防止太小导致排版错乱
 
         self.source_path = ""
@@ -175,6 +175,26 @@ class ToolBox(QWidget):
         group_l2d.setLayout(l2d_layout)
         layout.addWidget(group_l2d)
 
+        # 📄 JSONL 生成区域
+        group_jsonl = QGroupBox("📄 生成 JSONL 文件")
+        jsonl_layout = QFormLayout()
+
+        self.jsonl_root_label = QLabel("未选择")
+        btn_select_root = QPushButton("选择根目录")
+        btn_select_root.clicked.connect(self.select_jsonl_root)
+
+        self.jsonl_prefix_input = QLineEdit("myid")
+        btn_gen_jsonl = QPushButton("生成 JSONL")
+        btn_gen_jsonl.clicked.connect(self.run_generate_jsonl)
+
+        jsonl_layout.addRow(btn_select_root, self.jsonl_root_label)
+        jsonl_layout.addRow("ID 前缀：", self.jsonl_prefix_input)
+        jsonl_layout.addRow("", btn_gen_jsonl)
+
+        group_jsonl.setLayout(jsonl_layout)
+        layout.addWidget(group_jsonl)
+
+
         self.setLayout(layout)
 
         self.load_last_config()
@@ -214,15 +234,21 @@ class ToolBox(QWidget):
                 if os.path.isfile(self.target_path):
                     self.target_label.setPixmap(QPixmap(self.target_path).scaled(200, 160))
 
+                jsonl_root_path = config.get("jsonl_root_path", "")
+                if os.path.isdir(jsonl_root_path):
+                    self.jsonl_root = jsonl_root_path
+                    self.jsonl_root_label.setText(jsonl_root_path)
+
             except Exception as e:
                 print("配置文件读取失败：", e)
 
     def save_config(self):
         config = {
             "color_match_source_path": self.source_path,
-            "color_match_target_path": self.target_path,  # ✅ 新增
+            "color_match_target_path": self.target_path,
             "l2d_model_json_path": getattr(self, "batch_model_json_path", ""),
-            "l2d_file_or_dir": getattr(self, "batch_file_or_dir", "")
+            "l2d_file_or_dir": getattr(self, "batch_file_or_dir", ""),
+            "jsonl_root_path": getattr(self, "jsonl_root", "")  # ✅ 新增
         }
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
@@ -342,6 +368,34 @@ class ToolBox(QWidget):
 
         batch_update_mtn_param_text(self.mtn_dir, param_name, new_value)
         QMessageBox.information(self, "完成", f"已更新 {param_name} 为 {new_value}")
+
+
+    # 生成拼好模所需的jsonl文件
+    def run_generate_jsonl(self):
+        if not hasattr(self, "jsonl_root"):
+            QMessageBox.warning(self, "⚠️", "请先选择目录")
+            return
+
+        prefix = self.jsonl_prefix_input.text().strip()
+        if not prefix:
+            QMessageBox.warning(self, "⚠️", "请输入有效的 ID 前缀")
+            return
+
+        base_folder_name = os.path.basename(self.jsonl_root.rstrip(os.sep))
+        output_path = os.path.join(self.jsonl_root, f"{base_folder_name}.jsonl")
+
+        try:
+            collect_jsons_to_jsonl(self.jsonl_root, output_path, prefix, base_folder_name)
+            QMessageBox.information(self, "完成", f"JSONL 文件已生成：{output_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "❌ 出错", f"生成失败：{str(e)}")
+
+    def select_jsonl_root(self):
+        folder = QFileDialog.getExistingDirectory(self, "选择用于生成 JSONL 的目录")
+        if folder:
+            self.jsonl_root = folder
+            self.jsonl_root_label.setText(folder)
+            self.save_config()  # ✅ 记住路径
 
 
 if __name__ == "__main__":
