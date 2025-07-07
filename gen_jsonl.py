@@ -8,43 +8,61 @@ def get_sorted_subfolders(path):
         key=lambda x: x
     )
 
+def find_json_files(folder_path, max_depth=2):
+    json_files = []
+
+    def _walk(path, current_depth):
+        if current_depth > max_depth:
+            return
+        try:
+            for entry in sorted(os.listdir(path)):
+                full_path = os.path.join(path, entry)
+                if os.path.isdir(full_path):
+                    _walk(full_path, current_depth + 1)
+                elif entry.endswith(".json"):
+                    json_files.append(full_path)
+        except Exception as e:
+            print(f"❌ 访问失败: {path}, 错误: {e}")
+
+    _walk(folder_path, 0)
+    return json_files
+
 
 def collect_jsons_to_jsonl(root_dir, output_path, id_prefix, base_folder_name):
     index = 0
     records = []
     root_parent = os.path.dirname(root_dir)
-    index1_json_path = None  # ✅ index == 1 对应的 JSON 文件路径
+    index1_json_path = None
 
     with open(output_path, 'w', encoding='utf-8') as outfile:
         for folder_name in get_sorted_subfolders(root_dir):
             folder_path = os.path.join(root_dir, folder_name)
-            for file in sorted(os.listdir(folder_path)):
-                if file.endswith('.json'):
-                    abs_path = os.path.join(folder_path, file)
+            json_files = find_json_files(folder_path, max_depth=2)
 
-                    # 回溯到 "game" 目录
-                    temp_parent = root_parent
-                    while os.path.basename(temp_parent) != "game" and os.path.dirname(temp_parent) != temp_parent:
-                        temp_parent = os.path.dirname(temp_parent)
+            for abs_path in json_files:
+                # 回溯到 "game" 目录
+                temp_parent = root_parent
+                while os.path.basename(temp_parent) != "game" and os.path.dirname(temp_parent) != temp_parent:
+                    temp_parent = os.path.dirname(temp_parent)
 
-                    relative_path = os.path.relpath(abs_path, temp_parent).replace("\\", "/")
-                    relative_path = f"game/{relative_path}"
+                relative_path = os.path.relpath(abs_path, temp_parent).replace("\\", "/")
+                relative_path = f"game/{relative_path}"
 
-                    record = {
-                        "index": index,
-                        "id": f"{id_prefix}{index}",
-                        "path": relative_path,
-                        "folder": folder_name
-                    }
-                    outfile.write(json.dumps(record, ensure_ascii=False) + '\n')
-                    records.append(record)
+                record = {
+                    "index": index,
+                    "id": f"{id_prefix}{index}",
+                    "path": relative_path,
+                    "folder": folder_name
+                }
+                outfile.write(json.dumps(record, ensure_ascii=False) + '\n')
+                records.append(record)
 
-                    if index == 1:
-                        index1_json_path = abs_path  # ✅ 记录 index=1 的 JSON 路径
+                if index == 1:
+                    index1_json_path = abs_path
 
-                    index += 1
+                index += 1
 
-    # ✅ 将 index=1 的 json 内容保存为 base_folder_name.json 文件
+    # 输出 index=1 对应的 JSON
     if index1_json_path and os.path.exists(index1_json_path):
         with open(index1_json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
