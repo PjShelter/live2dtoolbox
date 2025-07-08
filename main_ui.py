@@ -441,12 +441,54 @@ class ToolBox(QWidget):
                 json.dump(data, f, indent=2, ensure_ascii=False)
             QMessageBox.information(self, "完成", f"已生成 model.json 到：{path}")
 
+    # 添加对jsonl的适配
     def cleanup_model_json(self):
         initial_dir = os.path.dirname(self.batch_model_json_path) if hasattr(self, "batch_model_json_path") else ""
-        path, _ = QFileDialog.getOpenFileName(self, "选择 model.json 文件", initial_dir, "JSON Files (*.json)")
-        if path and os.path.isfile(path):
-            remove_duplicates_and_check_files(path)
-            QMessageBox.information(self, "完成", f"已完成清理：{path}")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择 model.json 或 JSONL 文件", initial_dir,
+            "JSON / JSONL 文件 (*.json *.jsonl);;JSON 文件 (*.json);;JSONL 文件 (*.jsonl);;所有文件 (*)"
+        )
+        if not path or not os.path.isfile(path):
+            return
+
+        try:
+            if path.endswith(".json"):
+                remove_duplicates_and_check_files(path)
+                QMessageBox.information(self, "完成", f"已完成清理：{path}")
+            elif path.endswith(".jsonl"):
+                with open(path, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+
+                jsonl_dir = os.path.dirname(path)
+                temp_parent = jsonl_dir
+                while os.path.basename(temp_parent) != "game" and os.path.dirname(temp_parent) != temp_parent:
+                    temp_parent = os.path.dirname(temp_parent)
+
+                success = 0
+                for idx, line in enumerate(lines):
+                    try:
+                        obj = json.loads(line)
+                        model_path = obj.get("path")
+                        if not model_path:
+                            print(f"⚠️ 第 {idx + 1} 行无 path 字段")
+                            continue
+
+                        if os.path.basename(temp_parent) == "game" and model_path.startswith("game/"):
+                            model_path = model_path[len("game/"):]
+
+                        abs_path = os.path.normpath(os.path.join(temp_parent, model_path))
+                        if not os.path.isfile(abs_path):
+                            print(f"❌ model.json 文件不存在: {abs_path}")
+                            continue
+
+                        remove_duplicates_and_check_files(abs_path)
+                        success += 1
+                    except Exception as e:
+                        print(f"❌ 第 {idx + 1} 行处理失败: {e}")
+
+                QMessageBox.information(self, "完成", f"已清理 {success} 个 model.json")
+        except Exception as e:
+            QMessageBox.critical(self, "❌ 出错", f"处理失败：\n{str(e)}")
 
     def select_batch_model_json(self):
         initial_dir = os.path.dirname(self.batch_model_json_path) if hasattr(self, "batch_model_json_path") else ""

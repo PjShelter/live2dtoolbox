@@ -202,4 +202,7 @@ colorX = 255 - (source_mean - target_mean)
 
 
 
-
+```bash
+pyinstaller -w -F main_ui.py --icon=icon.ico --name Live2DToolbox --add-data "style.qss;."                                   
+                                                                                    
+```
