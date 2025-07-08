@@ -1,10 +1,12 @@
 import sys
 import os
 import json
+
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QPushButton, QLabel, QFileDialog,
     QVBoxLayout, QHBoxLayout, QMessageBox, QComboBox, QTextEdit,
-    QGroupBox, QLineEdit, QFormLayout
+    QGroupBox, QLineEdit, QFormLayout, QListWidget, QAbstractItemView, QDialogButtonBox, QListWidgetItem, QDialog
 )
 from PyQt5.QtGui import QPixmap, QIcon
 from PIL import Image
@@ -13,6 +15,71 @@ from live2d_tool import remove_duplicates_and_check_files, scan_live2d_directory
 from color_transfer import match_color, extract_webgal_full_transform, visualize, plot_parameter_comparison
 from gen_jsonl import collect_jsons_to_jsonl
 CONFIG_PATH = "config.json"
+
+
+class FileSelectionDialog(QDialog):
+    def __init__(self, folder_path, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("选择要添加的动作/表情文件")
+        self.setMinimumSize(400, 400)
+        self.selected_files = []
+
+        layout = QVBoxLayout()
+        self.list_widget = QListWidget()
+
+        files = []
+        for root, _, filenames in os.walk(folder_path):
+            for f in filenames:
+                if f.lower().endswith((".mtn", ".exp.json", ".motion3.json", ".exp3.json")):
+                    full_path = os.path.join(root, f)
+                    try:
+                        rel_path = os.path.relpath(full_path, folder_path)
+                    except ValueError:
+                        rel_path = os.path.basename(full_path)
+                    files.append(rel_path)
+
+        files.sort()
+        for f in files:
+            item = QListWidgetItem(f)
+            item.setCheckState(Qt.Checked)
+            self.list_widget.addItem(item)
+
+        layout.addWidget(QLabel(f"文件夹: {folder_path}"))
+        layout.addWidget(self.list_widget)
+
+        # ✅ 添加全选 / 全不选按钮
+        select_buttons = QHBoxLayout()
+        btn_select_all = QPushButton("全选")
+        btn_deselect_all = QPushButton("全不选")
+        select_buttons.addWidget(btn_select_all)
+        select_buttons.addWidget(btn_deselect_all)
+        layout.addLayout(select_buttons)
+
+        btn_select_all.clicked.connect(self.select_all)
+        btn_deselect_all.clicked.connect(self.deselect_all)
+
+        # ✅ OK / Cancel 按钮
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+    def select_all(self):
+        for i in range(self.list_widget.count()):
+            self.list_widget.item(i).setCheckState(Qt.Checked)
+
+    def deselect_all(self):
+        for i in range(self.list_widget.count()):
+            self.list_widget.item(i).setCheckState(Qt.Unchecked)
+
+    def get_selected_files(self):
+        return [
+            self.list_widget.item(i).text()
+            for i in range(self.list_widget.count())
+            if self.list_widget.item(i).checkState() == Qt.Checked
+        ]
 
 
 class Float2Encoder(json.JSONEncoder):
@@ -127,6 +194,24 @@ class ToolBox(QWidget):
         l2d_layout.addWidget(self.cleanup_btn)
 
         # 📦 批量添加动作/表情
+        group_l2d = QGroupBox("🧰 Live2D 工具部分")
+        l2d_main_layout = QHBoxLayout()
+
+        # 左列：两个按钮
+        left_layout = QVBoxLayout()
+        self.scan_btn = QPushButton("扫描目录并生成 model.json")
+        self.scan_btn.setMinimumWidth(240)
+        self.scan_btn.clicked.connect(self.generate_model_json)
+
+        self.cleanup_btn = QPushButton("去重并清理 model.json")
+        self.cleanup_btn.setMinimumWidth(240)
+        self.cleanup_btn.clicked.connect(self.cleanup_model_json)
+
+        left_layout.addWidget(self.scan_btn)
+        left_layout.addWidget(self.cleanup_btn)
+        left_layout.addStretch()
+
+        # 中列：📦 批量添加动作/表情
         group_batch_add = QGroupBox("📦 批量添加动作/表情")
         batch_layout = QFormLayout()
 
@@ -148,9 +233,8 @@ class ToolBox(QWidget):
         batch_layout.addRow("", btn_add)
 
         group_batch_add.setLayout(batch_layout)
-        l2d_layout.addWidget(group_batch_add)
 
-        # 🔧 批量修改 MTN 参数区域
+        # 右列：🔧 批量修改 MTN 参数
         group_mtn_edit = QGroupBox("🔧 批量修改 MTN 文件参数")
         mtn_layout = QFormLayout()
 
@@ -170,15 +254,21 @@ class ToolBox(QWidget):
         mtn_layout.addRow("", btn_apply_mtn)
 
         group_mtn_edit.setLayout(mtn_layout)
-        l2d_layout.addWidget(group_mtn_edit)
 
-        group_l2d.setLayout(l2d_layout)
+        # 添加到主布局
+        l2d_main_layout.addLayout(left_layout)
+        l2d_main_layout.addWidget(group_batch_add)
+        l2d_main_layout.addWidget(group_mtn_edit)
+
+        group_l2d.setLayout(l2d_main_layout)
         layout.addWidget(group_l2d)
 
-        # 📄 JSONL 生成区域
+        # 📄 JSONL 生成区域（横向排布）
         group_jsonl = QGroupBox("📄 生成 JSONL 文件")
-        jsonl_layout = QFormLayout()
+        jsonl_main_layout = QHBoxLayout()
 
+        # 左列：目录选择 + 前缀 + 生成按钮
+        left_layout = QVBoxLayout()
         self.jsonl_root_label = QLabel("未选择")
         btn_select_root = QPushButton("选择根目录")
         btn_select_root.clicked.connect(self.select_jsonl_root)
@@ -187,13 +277,48 @@ class ToolBox(QWidget):
         btn_gen_jsonl = QPushButton("生成 JSONL")
         btn_gen_jsonl.clicked.connect(self.run_generate_jsonl)
 
-        jsonl_layout.addRow(btn_select_root, self.jsonl_root_label)
-        jsonl_layout.addRow("ID 前缀：", self.jsonl_prefix_input)
-        jsonl_layout.addRow("", btn_gen_jsonl)
+        left_layout.addWidget(btn_select_root)
+        left_layout.addWidget(self.jsonl_root_label)
+        left_layout.addWidget(QLabel("ID 前缀："))
+        left_layout.addWidget(self.jsonl_prefix_input)
+        left_layout.addWidget(btn_gen_jsonl)
+        left_layout.addStretch()
 
-        group_jsonl.setLayout(jsonl_layout)
+        # 中列：子目录列表 + 刷新按钮
+        mid_layout = QVBoxLayout()
+        self.folder_list = QListWidget()
+        self.folder_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.folder_list.setMinimumHeight(180)
+        self.folder_list.setMaximumWidth(250)
+
+        self.btn_refresh_folders = QPushButton("📂 列出子目录")
+        self.btn_refresh_folders.clicked.connect(self.populate_folder_list)
+
+        mid_layout.addWidget(QLabel("子目录列表："))
+        mid_layout.addWidget(self.folder_list)
+        mid_layout.addWidget(self.btn_refresh_folders)
+        mid_layout.addStretch()
+
+        # 右列：上移下移按钮
+        right_layout = QVBoxLayout()
+        self.btn_up = QPushButton("↑ 上移")
+        self.btn_up.clicked.connect(self.move_folder_up)
+
+        self.btn_down = QPushButton("↓ 下移")
+        self.btn_down.clicked.connect(self.move_folder_down)
+
+        right_layout.addWidget(QLabel("顺序调整："))
+        right_layout.addWidget(self.btn_up)
+        right_layout.addWidget(self.btn_down)
+        right_layout.addStretch()
+
+        # 整合三列
+        jsonl_main_layout.addLayout(left_layout)
+        jsonl_main_layout.addLayout(mid_layout)
+        jsonl_main_layout.addLayout(right_layout)
+
+        group_jsonl.setLayout(jsonl_main_layout)
         layout.addWidget(group_jsonl)
-
 
         self.setLayout(layout)
 
@@ -325,7 +450,12 @@ class ToolBox(QWidget):
 
     def select_batch_model_json(self):
         initial_dir = os.path.dirname(self.batch_model_json_path) if hasattr(self, "batch_model_json_path") else ""
-        path, _ = QFileDialog.getOpenFileName(self, "选择 model.json 文件", initial_dir, "JSON Files (*.json)")
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择 model.json 或 JSONL 文件",
+            initial_dir,
+            "JSON Files (*.json *.jsonl);;All Files (*)"
+        )
         if path:
             self.batch_model_json_path = path
             self.batch_model_label.setText(path)
@@ -341,11 +471,75 @@ class ToolBox(QWidget):
 
     def run_batch_add(self):
         if not hasattr(self, "batch_model_json_path") or not hasattr(self, "batch_file_or_dir"):
-            QMessageBox.warning(self, "⚠", "请先选择 model.json 和资源目录")
+            QMessageBox.warning(self, "⚠", "请先选择 model.json（或 JSONL）和资源目录")
             return
-        prefix = self.prefix_input.text()
-        update_model_json_bulk(self.batch_model_json_path, self.batch_file_or_dir, prefix)
-        QMessageBox.information(self, "完成", "批量添加完成！")
+
+        prefix = self.prefix_input.text().strip()
+
+        # 弹出文件选择对话框
+        dialog = FileSelectionDialog(self.batch_file_or_dir, self)
+        if dialog.exec_() == QDialog.Rejected:
+            return  # 用户取消
+
+        selected_files = dialog.get_selected_files()
+        if not selected_files:
+            QMessageBox.warning(self, "⚠️", "未选择任何文件")
+            return
+
+        import tempfile, shutil
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            for f in selected_files:
+                src = os.path.join(self.batch_file_or_dir, f)
+                dst = os.path.join(temp_dir, f)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(src, dst)
+
+            if self.batch_model_json_path.endswith(".jsonl"):
+                try:
+                    with open(self.batch_model_json_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+                    success = 0
+
+                    jsonl_dir = os.path.dirname(self.batch_model_json_path)
+                    temp_parent = jsonl_dir
+                    while os.path.basename(temp_parent) != "game" and os.path.dirname(temp_parent) != temp_parent:
+                        temp_parent = os.path.dirname(temp_parent)
+
+                    for idx, line in enumerate(lines):
+                        try:
+                            obj = json.loads(line)
+                            model_path = obj.get("path")
+                            if not model_path:
+                                print(f"⚠️ 第 {idx + 1} 行无 path 字段")
+                                continue
+
+                            if os.path.basename(temp_parent) == "game" and model_path.startswith("game/"):
+                                model_path = model_path[len("game/"):]
+
+                            abs_model_path = os.path.normpath(os.path.join(temp_parent, model_path))
+
+                            if not os.path.isfile(abs_model_path):
+                                print(f"⚠️ 第 {idx + 1} 行 path 无效：{abs_model_path}")
+                                continue
+
+                            update_model_json_bulk(abs_model_path, temp_dir, prefix=prefix)
+                            print(f"✅ 已处理: {abs_model_path}")
+                            success += 1
+
+                        except Exception as e:
+                            print(f"❌ 第 {idx + 1} 行处理失败: {e}")
+
+                    QMessageBox.information(self, "完成", f"已批量更新 {success} 个 model.json！")
+                except Exception as e:
+                    QMessageBox.critical(self, "❌ 出错", f"读取 JSONL 失败：\n{str(e)}")
+            else:
+                # 普通单个 model.json 模式
+                update_model_json_bulk(self.batch_model_json_path, temp_dir, prefix)
+                QMessageBox.information(self, "完成", "批量添加完成！")
+        finally:
+            shutil.rmtree(temp_dir)
 
     def select_mtn_directory(self):
         initial_dir = self.mtn_dir if hasattr(self, "mtn_dir") else ""
@@ -381,11 +575,18 @@ class ToolBox(QWidget):
             QMessageBox.warning(self, "⚠️", "请输入有效的 ID 前缀")
             return
 
+        selected_items = self.folder_list.selectedItems()
+        selected_folders = [item.text() for item in selected_items]
+
+        if not selected_folders:
+            QMessageBox.warning(self, "⚠️", "请至少选择一个子目录")
+            return
+
         base_folder_name = os.path.basename(self.jsonl_root.rstrip(os.sep))
         output_path = os.path.join(self.jsonl_root, f"{base_folder_name}.jsonl")
 
         try:
-            collect_jsons_to_jsonl(self.jsonl_root, output_path, prefix, base_folder_name)
+            collect_jsons_to_jsonl(self.jsonl_root, output_path, prefix, base_folder_name, selected_folders)
             QMessageBox.information(self, "完成", f"JSONL 文件已生成：{output_path}")
         except Exception as e:
             QMessageBox.critical(self, "❌ 出错", f"生成失败：{str(e)}")
@@ -396,6 +597,32 @@ class ToolBox(QWidget):
             self.jsonl_root = folder
             self.jsonl_root_label.setText(folder)
             self.save_config()  # ✅ 记住路径
+
+    # 选择jsonl
+    def populate_folder_list(self):
+        self.folder_list.clear()
+        if not hasattr(self, "jsonl_root"):
+            QMessageBox.warning(self, "⚠️", "请先选择根目录")
+            return
+
+        for name in sorted(os.listdir(self.jsonl_root)):
+            full_path = os.path.join(self.jsonl_root, name)
+            if os.path.isdir(full_path) and not name.startswith("_"):
+                self.folder_list.addItem(name)
+
+    def move_folder_up(self):
+        row = self.folder_list.currentRow()
+        if row > 0:
+            item = self.folder_list.takeItem(row)
+            self.folder_list.insertItem(row - 1, item)
+            self.folder_list.setCurrentRow(row - 1)
+
+    def move_folder_down(self):
+        row = self.folder_list.currentRow()
+        if row < self.folder_list.count() - 1:
+            item = self.folder_list.takeItem(row)
+            self.folder_list.insertItem(row + 1, item)
+            self.folder_list.setCurrentRow(row + 1)
 
 
 if __name__ == "__main__":

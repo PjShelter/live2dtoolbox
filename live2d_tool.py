@@ -3,6 +3,14 @@ import json
 from collections import defaultdict
 
 
+def safe_relpath(path, start):
+    """跨盘符 fallback：同盘符正常相对路径，否则使用文件名"""
+    try:
+        return os.path.relpath(path, start).replace("\\", "/")
+    except ValueError:
+        return os.path.basename(path)
+
+
 def sanitize_path(path):
     """去除路径两侧的引号，防止误识别"""
     return path.strip().strip('"')
@@ -12,6 +20,8 @@ def remove_duplicates_and_check_files(model_json_path):
         model = json.load(f)
 
     base_dir = os.path.dirname(model_json_path)
+
+
 
     # 1️⃣ motions 去重并收集缺失文件（倒序处理，保留后出现的项）
     new_motions = defaultdict(list)
@@ -154,7 +164,8 @@ def update_model_json_bulk(model_json_path, new_files_or_dir, prefix=""):
             print(f"警告：文件 {new_file} 不存在，跳过。")
             continue
 
-        relative_path = os.path.relpath(new_file, base_dir).replace("\\", "/")
+        relative_path = safe_relpath(new_file, base_dir)
+
         file_name = os.path.basename(new_file)
 
         if file_name.endswith(".mtn"):
