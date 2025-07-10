@@ -137,7 +137,20 @@ def scan_live2d_directory(directory):
 def update_model_json_bulk(model_json_path, new_files_or_dir, prefix=""):
     """批量更新 model.json，添加多个动作或表情（支持添加前缀）"""
     model_json_path = sanitize_path(model_json_path)
-    new_files_or_dir = sanitize_path(new_files_or_dir)
+
+    # ✅ 判断 new_files_or_dir 是列表、目录、还是字符串
+    if isinstance(new_files_or_dir, list):
+        new_files = new_files_or_dir
+    elif os.path.isdir(new_files_or_dir):
+        new_files_or_dir = sanitize_path(new_files_or_dir)
+        new_files = []
+        for root, _, files in os.walk(new_files_or_dir):
+            for file in files:
+                if file.endswith((".mtn", ".exp.json")):
+                    new_files.append(os.path.join(root, file))
+    else:
+        new_files_or_dir = sanitize_path(new_files_or_dir)
+        new_files = new_files_or_dir.split(";")
 
     if not os.path.exists(model_json_path):
         print("错误：model.json 文件不存在！")
@@ -148,14 +161,11 @@ def update_model_json_bulk(model_json_path, new_files_or_dir, prefix=""):
 
     base_dir = os.path.dirname(model_json_path)
 
-    new_files = []
-    if os.path.isdir(new_files_or_dir):
-        for root, _, files in os.walk(new_files_or_dir):
-            for file in files:
-                if file.endswith((".mtn", ".exp.json")):
-                    new_files.append(os.path.join(root, file))
-    else:
-        new_files = new_files_or_dir.split(";")
+    # ✅ 确保字段存在
+    if "motions" not in model_data:
+        model_data["motions"] = {}
+    if "expressions" not in model_data:
+        model_data["expressions"] = []
 
     added_count = 0
     for new_file in new_files:
@@ -165,7 +175,6 @@ def update_model_json_bulk(model_json_path, new_files_or_dir, prefix=""):
             continue
 
         relative_path = safe_relpath(new_file, base_dir)
-
         file_name = os.path.basename(new_file)
 
         if file_name.endswith(".mtn"):
@@ -173,7 +182,6 @@ def update_model_json_bulk(model_json_path, new_files_or_dir, prefix=""):
             model_data["motions"].setdefault(motion_name, []).append({"file": relative_path})
             print(f"添加动作: {relative_path}（名称: {motion_name}）")
         elif file_name.endswith(".exp.json"):
-            # 去除 `.exp.json` 后缀：先去 `.json` 再去 `.exp`
             exp_name = os.path.splitext(os.path.splitext(file_name)[0])[0]
             exp_name = prefix + exp_name
             model_data["expressions"].append({"name": exp_name, "file": relative_path})
@@ -187,9 +195,9 @@ def update_model_json_bulk(model_json_path, new_files_or_dir, prefix=""):
     if added_count > 0:
         with open(model_json_path, "w", encoding="utf-8") as f:
             json.dump(model_data, f, indent=4, ensure_ascii=False)
-        print(f"批量更新完成，共添加 {added_count} 个文件，已保存到 {model_json_path}")
+        print(f"✅ 批量更新完成，共添加 {added_count} 个文件，已保存到 {model_json_path}")
     else:
-        print("没有可添加的文件，未修改 model.json")
+        print("⚠️ 没有可添加的文件，未修改 model.json")
 
 
 def batch_update_mtn_param_text(directory, param_name, new_value):

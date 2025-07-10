@@ -16,6 +16,45 @@ from color_transfer import match_color, extract_webgal_full_transform, visualize
 from gen_jsonl import collect_jsons_to_jsonl
 CONFIG_PATH = "config.json"
 
+import logging
+
+# 日志文件路径
+LOG_FILE = "log.txt"
+ERROR_FILE = "error.log"
+
+# 设置日志记录器
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+# 输出到 log.txt
+log_handler = logging.FileHandler(LOG_FILE, mode='a', encoding='utf-8')
+log_handler.setLevel(logging.INFO)
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+log_handler.setFormatter(log_formatter)
+logger.addHandler(log_handler)
+
+# 输出错误到 error.log
+error_handler = logging.FileHandler(ERROR_FILE, mode='a', encoding='utf-8')
+error_handler.setLevel(logging.ERROR)
+error_handler.setFormatter(log_formatter)
+logger.addHandler(error_handler)
+
+# 将 print 重定向到 logging.info，同时保留原本 stdout 输出
+class LoggerWrapper:
+    def __init__(self, stream):
+        self.stream = stream
+
+    def write(self, message):
+        if message.strip():  # 忽略空行
+            logging.info(message.strip())
+        self.stream.write(message)
+
+    def flush(self):
+        self.stream.flush()
+
+sys.stdout = LoggerWrapper(sys.stdout)
+
+
 
 class FileSelectionDialog(QDialog):
     def __init__(self, folder_path, parent=None):
@@ -532,11 +571,7 @@ class ToolBox(QWidget):
 
         temp_dir = tempfile.mkdtemp()
         try:
-            for f in selected_files:
-                src = os.path.join(self.batch_file_or_dir, f)
-                dst = os.path.join(temp_dir, f)
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
-                shutil.copy2(src, dst)
+            selected_full_paths = [os.path.join(self.batch_file_or_dir, f) for f in selected_files]
 
             if self.batch_model_json_path.endswith(".jsonl"):
                 try:
@@ -545,41 +580,73 @@ class ToolBox(QWidget):
                     success = 0
 
                     jsonl_dir = os.path.dirname(self.batch_model_json_path)
-                    temp_parent = jsonl_dir
-                    while os.path.basename(temp_parent) != "game" and os.path.dirname(temp_parent) != temp_parent:
-                        temp_parent = os.path.dirname(temp_parent)
 
                     for idx, line in enumerate(lines):
                         try:
                             obj = json.loads(line)
                             model_path = obj.get("path")
                             if not model_path:
-                                print(f"⚠️ 第 {idx + 1} 行无 path 字段")
                                 continue
 
-                            if os.path.basename(temp_parent) == "game" and model_path.startswith("game/"):
-                                model_path = model_path[len("game/"):]
-
-                            abs_model_path = os.path.normpath(os.path.join(temp_parent, model_path))
-
+                            abs_model_path = os.path.normpath(os.path.join(jsonl_dir, model_path))
                             if not os.path.isfile(abs_model_path):
                                 print(f"⚠️ 第 {idx + 1} 行 path 无效：{abs_model_path}")
                                 continue
 
-                            update_model_json_bulk(abs_model_path, temp_dir, prefix=prefix)
-                            print(f"✅ 已处理: {abs_model_path}")
+                            update_model_json_bulk(abs_model_path, selected_full_paths, prefix=prefix)
+                            print(f"✅ 已处理: {model_path}")
                             success += 1
 
                         except Exception as e:
                             print(f"❌ 第 {idx + 1} 行处理失败: {e}")
 
                     QMessageBox.information(self, "完成", f"已批量更新 {success} 个 model.json！")
+
+                    if success > 0:
+                        new_motions = set()
+                        new_expressions = set()
+                        for f in selected_files:
+                            name = os.path.splitext(os.path.basename(f))[0]
+                            if f.endswith(".mtn"):
+                                new_motions.add(prefix + name)
+                            elif f.endswith(".exp.json"):
+                                exp_name = os.path.splitext(name)[0]
+                                new_expressions.add(prefix + exp_name)
+
+                        # 检查是否已有 summary 行
+                        if lines and '"motions"' in lines[-1] and '"expressions"' in lines[-1]:
+                            try:
+                                old_summary = json.loads(lines[-1])
+                                old_motions = set(old_summary.get("motions", []))
+                                old_expressions = set(old_summary.get("expressions", []))
+                            except Exception:
+                                old_motions = set()
+                                old_expressions = set()
+                            lines = lines[:-1]  # 去掉旧的 summary 行
+                        else:
+                            old_motions = set()
+                            old_expressions = set()
+
+                        merged_summary = {
+                            "motions": sorted(old_motions.union(new_motions)),
+                            "expressions": sorted(old_expressions.union(new_expressions))
+                        }
+
+                        lines.append(json.dumps(merged_summary, ensure_ascii=False) + '\n')
+
+                        with open(self.batch_model_json_path, "w", encoding="utf-8") as f:
+                            f.writelines(lines)
+
+                        print("✅ 已更新 JSONL 末尾 summary 行")
+
                 except Exception as e:
                     QMessageBox.critical(self, "❌ 出错", f"读取 JSONL 失败：\n{str(e)}")
+
             else:
                 # 普通单个 model.json 模式
-                update_model_json_bulk(self.batch_model_json_path, temp_dir, prefix)
+                update_model_json_bulk(self.batch_model_json_path, selected_full_paths, prefix)
                 QMessageBox.information(self, "完成", "批量添加完成！")
+
         finally:
             shutil.rmtree(temp_dir)
 

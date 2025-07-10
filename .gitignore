@@ -10,3 +10,5 @@ icon.png
 config.json
 color_transfer.spec
 mtn.json
+log.txt
+error.log
