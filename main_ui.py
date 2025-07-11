@@ -1,3 +1,5 @@
+import log
+
 import sys
 import os
 import json
@@ -16,43 +18,7 @@ from color_transfer import match_color, extract_webgal_full_transform, visualize
 from gen_jsonl import collect_jsons_to_jsonl
 CONFIG_PATH = "config.json"
 
-import logging
 
-# 日志文件路径
-LOG_FILE = "log.txt"
-ERROR_FILE = "error.log"
-
-# 设置日志记录器
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
-
-# 输出到 log.txt
-log_handler = logging.FileHandler(LOG_FILE, mode='a', encoding='utf-8')
-log_handler.setLevel(logging.INFO)
-log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-log_handler.setFormatter(log_formatter)
-logger.addHandler(log_handler)
-
-# 输出错误到 error.log
-error_handler = logging.FileHandler(ERROR_FILE, mode='a', encoding='utf-8')
-error_handler.setLevel(logging.ERROR)
-error_handler.setFormatter(log_formatter)
-logger.addHandler(error_handler)
-
-# 将 print 重定向到 logging.info，同时保留原本 stdout 输出
-class LoggerWrapper:
-    def __init__(self, stream):
-        self.stream = stream
-
-    def write(self, message):
-        if message.strip():  # 忽略空行
-            logging.info(message.strip())
-        self.stream.write(message)
-
-    def flush(self):
-        self.stream.flush()
-
-sys.stdout = LoggerWrapper(sys.stdout)
 
 
 
