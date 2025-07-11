@@ -190,6 +190,57 @@ colorX = 255 - (source_mean - target_mean)
 
 ![4](readme/4.png)
 
+
+
+## 🎭 拼好模 JSONL 文件格式说明
+
+本文件为 `.jsonl` 格式（每行一个 JSON 对象），用于描述多个 **Live2D 模型子部件** 及其资源路径，并统一组合为一个虚拟角色立绘，同时提供动作（motions）与表情（expressions）列表，供引擎使用。
+
+### 📦 文件结构示例
+
+```json
+{"index": 0, "id": "myid0", "path": "1.头发/model.json", "folder": "1.头发"}
+{"index": 1, "id": "myid1", "path": "2.身体/model.json", "folder": "2.身体"}
+{"index": 2, "id": "myid2", "path": "3.脸/model.json", "folder": "3.脸"}
+{"index": 3, "id": "myid3", "path": "4.其他/model.json", "folder": "4.其他"}
+{"motions": ["idle01", "smile01"], "expressions": ["default", "angry01"]}
+```
+
+### 🧩 字段说明
+
+| 字段名        | 类型   | 描述                                                         |
+| ------------- | ------ | ------------------------------------------------------------ |
+| `index`       | int    | 模型部件在组合中的顺序（用于排序）                           |
+| `id`          | string | 每个部件的唯一 ID（通常由 `prefix + index` 构成）目前无实际含义 |
+| `path`        | string | 指向每个部件的 `model.json` 路径（相对路径）                 |
+| `folder`      | string | 部件所在子目录名称（可用于展示或资源管理）                   |
+| `motions`     | array  | ✅**仅出现在最后一行**，表示所有部件都支持的 **共通动作** 名称列表 |
+| `expressions` | array  | ✅**仅出现在最后一行**，表示所有部件中至少有一个支持的表情名称列表 |
+
+### 🧠 在Eastmount系列引擎中运行逻辑概述
+
+1. **解析 `.jsonl` 文件**
+   - 读取每一行 JSON；
+   - 获取每个部件的 `path` 字段，拼接为完整路径；
+   - 过滤掉非模型路径（如 summary，即最后一行存放动作表情）。
+2. **加载模型并添加至容器**
+   - 通过 `this.live2DModel.from(modelPath)` 异步加载每个 `model.json`；
+   - 调整缩放、锚点、位置等属性；
+   - 添加至统一的 `WebGALPixiContainer` 中，实现跟其他立绘一样的打光、移动效果。
+3. **统一设置动作与表情**
+   - 如果 `webgalStore` 中有之前设置的 motion/expression 则自动应用；
+   - 所有模型播放同一个动作；
+   - 同步表情切换；
+   - 禁用自动眨眼，避免不同部件重复闪烁。
+4. **加入舞台与状态注册**
+   - 将组合容器加入 `figureObjects` 列表；
+   - 注册 UUID 与 source 路径；
+   - 延迟显示容器（0.1秒 alpha 渐变）。
+
+### 🧠 使用场景
+
+目前支持，**且**仅在·`Eastmount`系列引擎中支持
+
 ## 📜 License
 
 本项目遵循 MIT 协议，欢迎自由使用、修改和分发。
