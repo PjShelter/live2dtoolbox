@@ -8,19 +8,17 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QPushButton, QLabel, QFileDialog,
     QVBoxLayout, QHBoxLayout, QMessageBox, QComboBox, QTextEdit,
-    QGroupBox, QLineEdit, QFormLayout, QListWidget, QAbstractItemView, QDialogButtonBox, QListWidgetItem, QDialog
+    QGroupBox, QLineEdit, QFormLayout, QListWidget, QAbstractItemView, QDialogButtonBox, QListWidgetItem, QDialog,
+    QCheckBox
 )
 from PyQt5.QtGui import QPixmap, QIcon
 from PIL import Image
 from live2d_tool import remove_duplicates_and_check_files, scan_live2d_directory, update_model_json_bulk, \
     batch_update_mtn_param_text
 from color_transfer import match_color, extract_webgal_full_transform, visualize, plot_parameter_comparison
+from version_info import check_for_update_gui
 from gen_jsonl import collect_jsons_to_jsonl
 CONFIG_PATH = "config.json"
-
-
-
-
 
 class FileSelectionDialog(QDialog):
     def __init__(self, folder_path, parent=None):
@@ -110,6 +108,7 @@ def format_transform_code(params: dict) -> str:
 
 
 class ToolBox(QWidget):
+
     def __init__(self):
         super().__init__()
         # ✅ 设置图标（兼容打包后路径）
@@ -133,6 +132,19 @@ class ToolBox(QWidget):
 
         layout = QVBoxLayout()
         layout.setSpacing(12)
+
+        top_button_layout = QHBoxLayout()
+
+        btn_check_update = QPushButton("🔄 检查更新")
+        btn_check_update.clicked.connect(lambda: check_for_update_gui(self))
+
+        btn_show_import_table = QPushButton("📋 查看 import 参数表")
+        btn_show_import_table.clicked.connect(self.show_import_table)
+
+        top_button_layout.addWidget(btn_check_update)
+        top_button_layout.addWidget(btn_show_import_table)
+
+        layout.addLayout(top_button_layout)
 
         # 🎨 色彩匹配工具区域
         group_color = QGroupBox("🎨 色彩匹配工具")
@@ -277,6 +289,14 @@ class ToolBox(QWidget):
         self.jsonl_root_label = QLabel("未选择")
         btn_select_root = QPushButton("选择根目录")
         btn_select_root.clicked.connect(self.select_jsonl_root)
+
+        self.append_import_checkbox = QCheckBox("统一import")
+        self.append_import_checkbox.setChecked(False)
+        left_layout.addWidget(self.append_import_checkbox)
+
+        self.import_value_input = QLineEdit("50")  # 默认值为50,祥子的
+        self.import_value_input.setPlaceholderText("Import 数值")
+        left_layout.addWidget(self.import_value_input)
 
         self.jsonl_prefix_input = QLineEdit("myid")
         btn_gen_jsonl = QPushButton("生成 JSONL")
@@ -579,24 +599,29 @@ class ToolBox(QWidget):
                                 exp_name = os.path.splitext(name)[0]
                                 new_expressions.add(prefix + exp_name)
 
-                        # 检查是否已有 summary 行
+                        # 原逻辑（存在就读取 motions / expressions）
                         if lines and '"motions"' in lines[-1] and '"expressions"' in lines[-1]:
                             try:
                                 old_summary = json.loads(lines[-1])
                                 old_motions = set(old_summary.get("motions", []))
                                 old_expressions = set(old_summary.get("expressions", []))
+                                old_import = old_summary.get("import")  # ✅ 加上这一行
                             except Exception:
                                 old_motions = set()
                                 old_expressions = set()
-                            lines = lines[:-1]  # 去掉旧的 summary 行
+                                old_import = None  # ✅
+                            lines = lines[:-1]
                         else:
                             old_motions = set()
                             old_expressions = set()
+                            old_import = None  # ✅
 
                         merged_summary = {
                             "motions": sorted(old_motions.union(new_motions)),
                             "expressions": sorted(old_expressions.union(new_expressions))
                         }
+                        if old_import is not None:  # ✅ 如果原来有 import 字段，保留
+                            merged_summary["import"] = old_import
 
                         lines.append(json.dumps(merged_summary, ensure_ascii=False) + '\n')
 
@@ -661,7 +686,31 @@ class ToolBox(QWidget):
         output_path = os.path.join(self.jsonl_root, f"{base_folder_name}.jsonl")
 
         try:
-            collect_jsons_to_jsonl(self.jsonl_root, output_path, prefix, base_folder_name, selected_folders)
+            # ✅ 如勾选了“添加 import 字段”，就在最后一行加 import
+            if self.append_import_checkbox.isChecked():
+                try:
+                    with open(output_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+
+                    if lines:
+                        last_line = lines[-1].strip()
+                        try:
+                            last_obj = json.loads(last_line)
+                            if isinstance(last_obj, dict):
+                                try:
+                                    import_val = int(self.import_value_input.text().strip())
+                                    last_obj["import"] = import_val
+                                except ValueError:
+                                    print("⚠️ import 不是有效整数，跳过添加")
+                                lines[-1] = json.dumps(last_obj, ensure_ascii=False) + "\n"
+                                with open(output_path, "w", encoding="utf-8") as f:
+                                    f.writelines(lines)
+                                print("✅ 已在 summary 行添加 import 字段")
+                        except json.JSONDecodeError:
+                            print("⚠️ 最后一行不是有效 JSON，未修改")
+                except Exception as e:
+                    QMessageBox.warning(self, "⚠️ 修改失败", f"无法添加 import 字段：\n{str(e)}")
+
             QMessageBox.information(self, "完成", f"JSONL 文件已生成：{output_path}")
         except Exception as e:
             QMessageBox.critical(self, "❌ 出错", f"生成失败：{str(e)}")
@@ -698,6 +747,46 @@ class ToolBox(QWidget):
             item = self.folder_list.takeItem(row)
             self.folder_list.insertItem(row + 1, item)
             self.folder_list.setCurrentRow(row + 1)
+
+    def show_import_table(self):
+        json_path = os.path.join(os.path.dirname(__file__), "name_import.json")
+        if not os.path.isfile(json_path):
+            QMessageBox.warning(self, "未找到文件", "无法找到 name_import.json 文件")
+            return
+
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                import_data = json.load(f)
+
+            lines = []
+            for item in sorted(import_data, key=lambda x: x.get("import", 0)):
+                import_id = item.get("import", "")
+                ja = item.get("name_ja", "")
+                en = item.get("name_en", "")
+                zh = item.get("name_zh", "")
+                lines.append(f'{import_id:>2} | {ja:<10} | {en:<20} | {zh}')
+
+            text = "\n".join(lines)
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Import 参数列表")
+            dialog.resize(600, 600)
+            layout = QVBoxLayout()
+
+            text_edit = QTextEdit()
+            text_edit.setReadOnly(True)
+            text_edit.setText(text)
+            layout.addWidget(text_edit)
+
+            close_btn = QPushButton("关闭")
+            close_btn.clicked.connect(dialog.accept)
+            layout.addWidget(close_btn)
+
+            dialog.setLayout(layout)
+            dialog.exec_()
+
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"读取 name_import.json 出错：\n{str(e)}")
 
 
 if __name__ == "__main__":
