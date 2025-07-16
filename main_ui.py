@@ -20,6 +20,13 @@ from version_info import check_for_update_gui
 from gen_jsonl import collect_jsons_to_jsonl
 CONFIG_PATH = "config.json"
 
+
+def get_resource_path(relative_path):
+    """兼容 PyInstaller 打包后的路径"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.abspath(relative_path)
+
 class FileSelectionDialog(QDialog):
     def __init__(self, folder_path, parent=None):
         super().__init__(parent)
@@ -686,6 +693,8 @@ class ToolBox(QWidget):
         output_path = os.path.join(self.jsonl_root, f"{base_folder_name}.jsonl")
 
         try:
+            collect_jsons_to_jsonl(self.jsonl_root, output_path, prefix, base_folder_name, selected_folders)
+
             # ✅ 如勾选了“添加 import 字段”，就在最后一行加 import
             if self.append_import_checkbox.isChecked():
                 try:
@@ -749,7 +758,7 @@ class ToolBox(QWidget):
             self.folder_list.setCurrentRow(row + 1)
 
     def show_import_table(self):
-        json_path = os.path.join(os.path.dirname(__file__), "name_import.json")
+        json_path = get_resource_path("name_import.json")
         if not os.path.isfile(json_path):
             QMessageBox.warning(self, "未找到文件", "无法找到 name_import.json 文件")
             return
