@@ -1,0 +1,108 @@
+/* 粉蓝背景 + 字体 */
+QWidget {
+    background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1,
+        stop:0 #f9c5d1, stop:1 #a0c4ff);  /* 粉到蓝渐变 */
+    color: #333;
+    font-size: 14px;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+/* 半透明按钮 */
+QPushButton {
+    background-color: rgba(255, 255, 255, 0.7);
+    color: #444;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 14px;
+    padding: 8px 16px;
+}
+QPushButton:hover {
+    background-color: rgba(255, 255, 255, 0.85);
+    border: 1px solid #f9c5d1;
+}
+QPushButton:pressed {
+    background-color: #f9c5d1;
+    color: white;
+}
+QPushButton:disabled {
+    background-color: rgba(220, 220, 220, 0.6);
+    color: #aaa;
+}
+
+/* 输入框 */
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background-color: rgba(255, 255, 255, 0.8);
+    color: #333;
+    border: 1px solid #f9c5d1;
+    border-radius: 10px;
+    padding: 6px;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+    border: 1px solid #a0c4ff;
+}
+
+/* 表格 */
+QTableWidget {
+    background-color: rgba(255, 255, 255, 0.8);
+    gridline-color: #ccc;
+    color: #333;
+    border: none;
+}
+QHeaderView::section {
+    background-color: #f9c5d1;
+    color: #333;
+    padding: 6px;
+    border: none;
+}
+QTableWidget::item:selected {
+    background-color: #a0c4ff;
+    color: white;
+}
+
+/* ComboBox */
+QComboBox {
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #333;
+    border: 1px solid #f9c5d1;
+    border-radius: 10px;
+    padding: 4px 8px;
+}
+QComboBox QAbstractItemView {
+    background-color: white;
+    color: #333;
+    selection-background-color: #a0c4ff;
+}
+
+/* 滚动条 */
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: transparent;
+    width: 8px;
+    height: 8px;
+}
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background: #f9c5d1;
+    border-radius: 4px;
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+    width: 0px;
+    height: 0px;
+}
+
+/* 菜单栏 QListWidget */
+QListWidget {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #333;
+    font-size: 14px;
+    padding: 4px;
+}
+QListWidget::item {
+    padding: 8px 12px;
+    border-radius: 12px;
+}
+QListWidget::item:selected {
+    background-color: #f9c5d1;
+    color: #fff;
+}
+QListWidget::item:hover {
+    background-color: #fbdde5;
+}

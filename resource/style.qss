@@ -1,0 +1,111 @@
+/* 全局字体与背景 */
+QWidget {
+    background-color: rgba(43, 43, 43, 180);  /* 半透明灰 */
+    color: #f2f2f2;
+    font-size: 14px;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+/* 按钮：半透明 + 发光 hover */
+QPushButton {
+    background-color: rgba(60, 60, 60, 180);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 8px 16px;
+}
+QPushButton:hover {
+    background-color: rgba(80, 80, 80, 200);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+}
+QPushButton:pressed {
+    background-color: rgba(100, 100, 100, 220);
+}
+QPushButton:disabled {
+    background-color: rgba(60, 60, 60, 100);
+    color: #888888;
+}
+
+/* 输入框 */
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background-color: rgba(50, 50, 50, 150);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    padding: 6px;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+    border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* 表格控件 */
+QTableWidget {
+    background-color: rgba(30, 30, 30, 160);
+    gridline-color: #444;
+    color: #f0f0f0;
+    border: none;
+}
+QHeaderView::section {
+    background-color: rgba(60, 60, 60, 200);
+    color: #ffffff;
+    padding: 6px;
+    border: none;
+}
+QTableWidget::item:selected {
+    background-color: rgba(100, 100, 100, 180);
+}
+
+/* ComboBox */
+QComboBox {
+    background-color: rgba(50, 50, 50, 150);
+    color: white;
+    border-radius: 10px;
+    padding: 4px 8px;
+}
+QComboBox QAbstractItemView {
+    background-color: rgba(30, 30, 30, 200);
+    color: white;
+    selection-background-color: rgba(100, 100, 100, 200);
+    border-radius: 6px;
+}
+
+/* 滚动条 */
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: transparent;
+    width: 8px;
+    height: 8px;
+}
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background: rgba(160, 160, 160, 120);
+    border-radius: 4px;
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+    width: 0px;
+    height: 0px;
+}
+
+/* QListWidget 外观统一 */
+QListWidget {
+    background-color: rgba(30, 30, 30, 180);
+    border: none;
+    color: #f0f0f0;
+    font-size: 14px;
+    padding: 4px;
+}
+
+/* 每项高度、圆角、hover 效果 */
+QListWidget::item {
+    padding: 8px 12px;
+    border-radius: 12px;
+}
+
+/* 高亮选中项：灰色圆角背景 */
+QListWidget::item:selected {
+    background-color: rgba(100, 100, 100, 180);
+    color: #ffffff;
+}
+
+/* 鼠标悬停项：略亮的灰色 */
+QListWidget::item:hover {
+    background-color: rgba(80, 80, 80, 150);
+}

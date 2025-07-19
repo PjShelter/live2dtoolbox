@@ -149,7 +149,7 @@ def main():
         return
     source_img = Image.open(source_path).convert("RGB")
 
-    png_dir = "png"
+    png_dir = "../png"
     if not os.path.isdir(png_dir):
         print(f"❌ Directory '{png_dir}' does not exist. Please create it and put reference images inside.")
         return
@@ -173,7 +173,7 @@ def main():
     matched_img = match_color(source_img, target_img)
 
     # 自动构造输出路径
-    output_dir = "output"
+    output_dir = "../output"
     os.makedirs(output_dir, exist_ok=True)
     source_name = os.path.splitext(os.path.basename(source_path))[0]
     target_name = os.path.splitext(os.path.basename(target_path))[0]
