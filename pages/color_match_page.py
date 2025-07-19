@@ -9,7 +9,7 @@ from PyQt5.QtCore import Qt
 
 from utils.common import CONFIG_PATH, format_transform_code
 from sections.color_transfer import extract_webgal_full_transform, match_color, plot_parameter_comparison
-
+from sections.color_transfer import extract_webgal_rgb_only
 
 class ColorMatchPage(QWidget):
     def __init__(self):
@@ -58,6 +58,11 @@ class ColorMatchPage(QWidget):
         self.webgal_output = QTextEdit()
         self.webgal_output.setPlaceholderText("此处将显示 WebGAL 指令...")
         self.webgal_output.setMinimumHeight(60)
+
+        # RGB-only 输出
+        self.rgb_output = QTextEdit()
+        self.rgb_output.setPlaceholderText("仅 RGB 参数代码输出（可用于滤镜）...")
+        self.rgb_output.setMinimumHeight(60)
 
         # 拼装布局
         color_layout.addLayout(image_select_layout)
@@ -156,11 +161,18 @@ class ColorMatchPage(QWidget):
         out_path = os.path.join(source_dir, f"matched_{src}_{tgt}.png")
         matched.save(out_path)
 
+
         self.result_path = out_path
         self.result_label.setPixmap(QPixmap(out_path).scaled(200, 160))
 
         webgal = extract_webgal_full_transform(source, target)
-        self.webgal_output.setText(format_transform_code(webgal))
+        full_code = format_transform_code(webgal)
+        rgb_only = extract_webgal_rgb_only(source, target)
+        rgb_code = f'setTransform:{{"colorRed":{rgb_only["colorRed"]},"colorGreen":{rgb_only["colorGreen"]},"colorBlue":{rgb_only["colorBlue"]}}} -target=bg-main -duration=0 -next;'
+        combined_code = full_code + "\n" + rgb_code
+        self.webgal_output.setText(combined_code)
+
+
         QMessageBox.information(self, "完成", f"已保存匹配图像到：{out_path}")
 
         # 对比图

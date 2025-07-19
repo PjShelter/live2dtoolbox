@@ -3,10 +3,20 @@ import os
 import json
 import sys
 
+import numpy as np
+
 CONFIG_PATH = "config.json"
 
-def format_transform_code(transform_dict):
-    return f'setTransform:{json.dumps(transform_dict, ensure_ascii=False)}'
+def format_transform_code(transform_dict: dict) -> str:
+    def to_builtin(x):
+        if isinstance(x, (np.float32, np.float64)):
+            return float(x)
+        elif isinstance(x, (np.int32, np.int64)):
+            return int(x)
+        return x
+
+    cleaned = {k: to_builtin(v) for k, v in transform_dict.items()}
+    return f'setTransform:{json.dumps(cleaned, ensure_ascii=False)}'
 
 
 def save_config(config: dict):

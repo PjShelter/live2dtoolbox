@@ -26,33 +26,33 @@ def extract_webgal_full_transform(source: Image.Image, target: Image.Image) -> d
     source_np = np.asarray(source).astype(np.float32) / 255.0
     target_np = np.asarray(target).astype(np.float32) / 255.0
 
-    # 亮度
+    # === 亮度（平均值）===
     src_lum = source_np.mean()
     tgt_lum = target_np.mean()
     brightness = tgt_lum / src_lum if src_lum > 1e-6 else 1.0
 
-    # 对比度
+    # === 对比度（标准差）===
     src_contrast = source_np.std()
     tgt_contrast = target_np.std()
     contrast = tgt_contrast / src_contrast if src_contrast > 1e-6 else 1.0
 
-    # 饱和度
+    # === 饱和度（HSL 中的 S）===
     def rgb_to_saturation(rgb):
         maxc = rgb.max(axis=2)
         minc = rgb.min(axis=2)
         sat = (maxc - minc) / (maxc + 1e-6)
         return np.mean(sat)
 
-    saturation = rgb_to_saturation(target_np) / rgb_to_saturation(source_np)
+    saturation = rgb_to_saturation(target_np) / (rgb_to_saturation(source_np) + 1e-6)
 
-    # 伽马
+    # === 伽马估计（图像整体亮度的非线性分布）===
     def estimate_gamma(img_np):
         img_np = np.clip(img_np, 1e-6, 1.0)
         return np.log(img_np.mean()) / np.log(0.5)
 
-    gamma = estimate_gamma(target_np) / estimate_gamma(source_np)
+    gamma = estimate_gamma(target_np) / (estimate_gamma(source_np) + 1e-6)
 
-    # RGB 差值
+    # === RGB 均值调整 ===
     source_array = (source_np * 255).astype(np.float32)
     target_array = (target_np * 255).astype(np.float32)
 
@@ -60,16 +60,33 @@ def extract_webgal_full_transform(source: Image.Image, target: Image.Image) -> d
     for c, key in enumerate(["colorRed", "colorGreen", "colorBlue"]):
         src_mean = source_array[..., c].mean()
         tgt_mean = target_array[..., c].mean()
-        rgb_adjust[key] = int(255 - (src_mean - tgt_mean))  # 允许超出 255
+        factor = tgt_mean / (src_mean + 1e-6)
+        rgb_adjust[key] = int(np.clip(factor * 255, 0, 512))
 
+    # === 最终返回，统一保留两位小数 ===
     return {
-        "brightness": float(round(brightness, 2)),
-        "contrast": float(round(np.power(contrast, 0.6), 2)),
-        "saturation": float(round(np.clip(saturation, 0.0, 2.0), 2)),
-        "gamma": float(round(np.clip(np.sqrt(1.0 / gamma), 0.5, 2.0), 2)),
-        **{k: int(v) for k, v in rgb_adjust.items()}
+        "brightness": round(brightness, 2),
+        "contrast": round(np.power(contrast, 0.6), 2),
+        "saturation": round(np.clip(saturation, 0.0, 2.0), 2),
+        "gamma": round(np.clip(np.sqrt(1.0 / gamma), 0.5, 2.0), 2),
+        **rgb_adjust
     }
 
+def extract_webgal_rgb_only(source: Image.Image, target: Image.Image) -> dict:
+    source_np = np.asarray(source).astype(np.float32) / 255.0
+    target_np = np.asarray(target).astype(np.float32) / 255.0
+
+    source_array = (source_np * 255).astype(np.float32)
+    target_array = (target_np * 255).astype(np.float32)
+
+    rgb_adjust = {}
+    for c, key in enumerate(["colorRed", "colorGreen", "colorBlue"]):
+        src_mean = source_array[..., c].mean()
+        tgt_mean = target_array[..., c].mean()
+        factor = tgt_mean / (src_mean + 1e-6)
+        rgb_adjust[key] = int(np.clip(factor * 255, 0, 512))
+
+    return rgb_adjust
 
 
 def visualize(source, target, matched):

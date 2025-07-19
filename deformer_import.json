@@ -1,0 +1,359 @@
+{
+    "0": {
+      "Type": 69,
+      "OriginX": 1500.0,
+      "OriginY": 1311.0,
+      "heightLevel": 3,
+      "heightRank": 46
+    },
+    "1": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1250.0,
+      "heightLevel": 2,
+      "heightRank": 24
+    },
+    "2": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1135.0,
+      "heightLevel": 0,
+      "heightRank": 7
+    },
+    "3": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1329.6666,
+      "heightLevel": 3,
+      "heightRank": 47
+    },
+    "4": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1225.6666,
+      "heightLevel": 1,
+      "heightRank": 19
+    },
+    "5": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1295.0,
+      "heightLevel": 2,
+      "heightRank": 42
+    },
+    "6": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1241.6666,
+      "heightLevel": 1,
+      "heightRank": 22
+    },
+    "7": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1227.0,
+      "heightLevel": 1,
+      "heightRank": 21
+    },
+    "8": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1273.0,
+      "heightLevel": 2,
+      "heightRank": 37
+    },
+    "9": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1054.0,
+      "heightLevel": 0,
+      "heightRank": 4
+    },
+    "10": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1251.3334,
+      "heightLevel": 2,
+      "heightRank": 30
+    },
+    "11": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1271.3334,
+      "heightLevel": 2,
+      "heightRank": 35
+    },
+    "12": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1028.6666,
+      "heightLevel": 0,
+      "heightRank": 2
+    },
+    "13": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1300.6666,
+      "heightLevel": 3,
+      "heightRank": 43
+    },
+    "14": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1251.3334,
+      "heightLevel": 2,
+      "heightRank": 31
+    },
+    "15": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1226.0,
+      "heightLevel": 1,
+      "heightRank": 20
+    },
+    "16": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1252.0,
+      "heightLevel": 2,
+      "heightRank": 32
+    },
+    "17": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1252.0,
+      "heightLevel": 2,
+      "heightRank": 33
+    },
+    "18": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1305.0,
+      "heightLevel": 3,
+      "heightRank": 44
+    },
+    "19": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1186.0,
+      "heightLevel": 0,
+      "heightRank": 12
+    },
+    "20": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1138.0,
+      "heightLevel": 0,
+      "heightRank": 8
+    },
+    "21": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1272.0,
+      "heightLevel": 2,
+      "heightRank": 36
+    },
+    "22": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1182.0,
+      "heightLevel": 0,
+      "heightRank": 11
+    },
+    "23": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1225.0,
+      "heightLevel": 1,
+      "heightRank": 17
+    },
+    "24": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1384.9934,
+      "heightLevel": 3,
+      "heightRank": 50
+    },
+    "25": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1210.0,
+      "heightLevel": 1,
+      "heightRank": 15
+    },
+    "26": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1283.0758,
+      "heightLevel": 2,
+      "heightRank": 40
+    },
+    "27": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1134.6982,
+      "heightLevel": 0,
+      "heightRank": 6
+    },
+    "28": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1225.4152,
+      "heightLevel": 1,
+      "heightRank": 18
+    },
+    "29": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1356.2108,
+      "heightLevel": 3,
+      "heightRank": 49
+    },
+    "30": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1058.1112,
+      "heightLevel": 0,
+      "heightRank": 5
+    },
+    "31": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1026.2675,
+      "heightLevel": 0,
+      "heightRank": 1
+    },
+    "32": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1273.0018,
+      "heightLevel": 2,
+      "heightRank": 39
+    },
+    "33": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1044.1112,
+      "heightLevel": 0,
+      "heightRank": 3
+    },
+    "34": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1174.9497,
+      "heightLevel": 0,
+      "heightRank": 10
+    },
+    "35": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1428.8925,
+      "heightLevel": 3,
+      "heightRank": 51
+    },
+    "36": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1288.3334,
+      "heightLevel": 2,
+      "heightRank": 41
+    },
+    "37": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1206.0,
+      "heightLevel": 1,
+      "heightRank": 14
+    },
+    "38": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1340.6666,
+      "heightLevel": 3,
+      "heightRank": 48
+    },
+    "39": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1188.9497,
+      "heightLevel": 0,
+      "heightRank": 13
+    },
+    "40": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1262.0,
+      "heightLevel": 2,
+      "heightRank": 34
+    },
+    "41": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1250.0,
+      "heightLevel": 2,
+      "heightRank": 25
+    },
+    "42": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1250.0,
+      "heightLevel": 2,
+      "heightRank": 26
+    },
+    "43": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1250.0,
+      "heightLevel": 2,
+      "heightRank": 27
+    },
+    "44": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1250.0,
+      "heightLevel": 2,
+      "heightRank": 28
+    },
+    "45": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1250.0,
+      "heightLevel": 2,
+      "heightRank": 29
+    },
+    "46": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1218.0,
+      "heightLevel": 1,
+      "heightRank": 16
+    },
+    "47": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1307.9955,
+      "heightLevel": 3,
+      "heightRank": 45
+    },
+    "48": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1243.2443,
+      "heightLevel": 1,
+      "heightRank": 23
+    },
+    "49": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1140.4841,
+      "heightLevel": 0,
+      "heightRank": 9
+    },
+    "50": {
+      "Type": 69,
+      "OriginX": 1000.0,
+      "OriginY": 1273.0,
+      "heightLevel": 2,
+      "heightRank": 38
+    }
+  }
