@@ -1,6 +1,10 @@
+# sections/gen_jsonl.py
+import codecs
 import os
 import json
 from collections import defaultdict
+from typing import List
+
 
 def is_valid_live2d_json(file_path):
     try:
@@ -110,13 +114,81 @@ def collect_jsons_to_jsonl(root_dir, output_path, id_prefix, base_folder_name, s
         }
         outfile.write(json.dumps(meta_record, ensure_ascii=False) + '\n')
 
-    # ✅ 额外生成 index==1 的 JSON 文件
-    if index1_json_path and os.path.exists(index1_json_path):
-        try:
-            with open(index1_json_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            json_output_path = os.path.splitext(output_path)[0] + ".json"
-            with open(json_output_path, 'w', encoding='utf-8') as jsonfile:
-                json.dump(data, jsonfile, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"❌ 写入 JSON 文件失败: {e}")
+
+
+import os
+import json
+
+
+def conf_to_jsonl_with_summary(conf_path, figure_root_dir):
+    output_dir = os.path.join(os.path.dirname(conf_path), "converted_jsonl")
+    os.makedirs(output_dir, exist_ok=True)
+
+    with open(conf_path, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+
+    if len(lines) < 8:
+        raise ValueError("conf 文件格式不正确，至少需要 8 行")
+
+    name = lines[0]
+    change_lines = lines[1].split("\\n")
+    main_path = lines[2]
+    transform_lines = lines[3].split("\\n")
+    # lines[4] 是 transform 的基础行，跳过
+    other_paths = lines[5].split("\\n") if lines[5] else []
+    offsets = list(map(float, lines[6].split(","))) if lines[6] else []
+    import_value = int(lines[7]) if lines[7].isdigit() else None
+
+    all_paths = [main_path] + other_paths
+    jsonl_lines = []
+
+    for idx, full_path in enumerate(all_paths):
+        id_str = f"myid{idx}"
+        filename = os.path.basename(full_path)
+        entry = {
+            "index": idx,
+            "id": id_str,
+            "path": filename,
+            "folder": "."
+        }
+
+        # 动态偏移，只在非主模型上添加 y 值
+        if idx > 0 and (2 * (idx - 1) + 1) < len(offsets):
+            entry["y"] = float(offsets[2 * (idx - 1) + 1])
+
+        jsonl_lines.append(entry)
+
+    # 扫描 motion / expression
+    motions_set = set()
+    expressions_set = set()
+    for path in all_paths:
+        model_dir = os.path.join(figure_root_dir, os.path.dirname(path))
+        model_json_path = os.path.join(model_dir, "model.json")
+        if os.path.exists(model_json_path):
+            try:
+                with open(model_json_path, "r", encoding="utf-8") as mf:
+                    model_data = json.load(mf)
+                    motions = model_data.get("motions", {})
+                    expressions = model_data.get("expressions", {})
+
+                    for key in motions.keys():
+                        motions_set.add(key)
+                    for key in expressions.keys():
+                        expressions_set.add(key)
+            except Exception:
+                pass
+
+    summary = {
+        "motions": sorted(motions_set),
+        "expressions": sorted(expressions_set),
+    }
+    if import_value is not None:
+        summary["import"] = import_value
+
+    jsonl_output_path = os.path.join(output_dir, f"{name}.jsonl")
+    with open(jsonl_output_path, "w", encoding="utf-8") as f:
+        for line in jsonl_lines:
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
+        f.write(json.dumps(summary, ensure_ascii=False) + "\n")
+
+    return jsonl_output_path

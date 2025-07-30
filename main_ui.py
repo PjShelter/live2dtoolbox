@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
     QStackedLayout, QComboBox, QPushButton
 )
 
+from pages.L2dwConfPage import L2dwConfPage
 from pages.batch_tool_page import BatchToolPage
 from pages.color_match_page import ColorMatchPage
 from pages.import_table_page import ImportTablePage
@@ -115,6 +116,7 @@ class ToolBox(QWidget):
         self.page_jsonl = JsonlGeneratorPage()
         self.page_jsonl_editor=JsonlEditorPage()
         self.page_import = ImportTablePage()
+        self.page_l2dw = L2dwConfPage()
 
         # 页面栈
         self.stack = QStackedLayout()
@@ -123,7 +125,7 @@ class ToolBox(QWidget):
         self.stack.addWidget(self.page_jsonl)
         self.stack.addWidget(self.page_jsonl_editor)
         self.stack.addWidget(self.page_import)
-
+        self.stack.addWidget(self.page_l2dw)
 
         self.theme_button = QPushButton("切换主题：银灰")
         self.theme_button.setFixedWidth(120)
@@ -139,7 +141,8 @@ class ToolBox(QWidget):
             "🧰 live2d工具部分",
             "📦 生成 jsonl",
             "✏️ 编辑 JSONL",
-            "📊 IMPORT 参数表"
+            "📊 IMPORT 参数表",
+            "🔗 联动 L2DW 生成 conf"
         ])
         self.menu.currentRowChanged.connect(self.switch_page)
         # 检查更新按钮

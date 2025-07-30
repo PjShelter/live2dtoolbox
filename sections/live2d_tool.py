@@ -299,6 +299,28 @@ def merge_exp_faces_with_mapping(left_exp_path, right_exp_path, exps_json_path, 
     print(f"✅ 合并完成：{output_path}")
 
 
+def batch_remove_mtn_param_text(directory, param_name="PARAM_IMPORT"):
+    """批量删除指定目录下所有 .mtn 文件中的指定参数行"""
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith(".mtn"):
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+
+                    new_lines = [line for line in lines if not line.strip().startswith(f"{param_name}=")]
+
+                    if len(new_lines) < len(lines):
+                        with open(file_path, "w", encoding="utf-8") as f:
+                            f.writelines(new_lines)
+                        print(f"✅ 删除了 {file_path} 中的 {param_name} 参数行")
+                    else:
+                        print(f"⏭️ 未发现 {param_name} 于 {file_path}，跳过")
+
+                except Exception as e:
+                    print(f"处理 {file_path} 时出错: {e}")
+
 
 def main():
     while True:

@@ -108,9 +108,16 @@ class BatchToolPage(QWidget):
         self.update_btn = QPushButton("批量更新")
         self.update_btn.clicked.connect(self.update_param)
 
+        self.delete_btn = QPushButton("❌ 删除参数")
+        self.delete_btn.clicked.connect(self.delete_param)
+
+        row_buttons = QHBoxLayout()
+        row_buttons.addWidget(self.update_btn)
+        row_buttons.addWidget(self.delete_btn)
+
         param_layout.addLayout(row4)
         param_layout.addLayout(row5)
-        param_layout.addWidget(self.update_btn)
+        param_layout.addLayout(row_buttons)
 
         group_param.setLayout(param_layout)
         layout.addWidget(group_param)
@@ -118,6 +125,21 @@ class BatchToolPage(QWidget):
         self.setLayout(layout)
 
         self.load_config()
+
+    def delete_param(self):
+        dir_path = self.mtn_dir_input.text().strip()
+        param = self.param_name_input.text().strip()
+
+        if not dir_path or not param:
+            QMessageBox.warning(self, "缺少信息", "请填写完整的目录和参数名")
+            return
+
+        try:
+            from sections.live2d_tool import batch_remove_mtn_param_text
+            batch_remove_mtn_param_text(dir_path, param)
+            QMessageBox.information(self, "完成", f"已删除参数：{param}")
+        except Exception as e:
+            QMessageBox.critical(self, "出错", f"删除失败：\n{str(e)}")
 
     def select_batch_model_json(self):
         initial_dir = os.path.dirname(self.batch_model_json_path) if hasattr(self, "batch_model_json_path") else ""
