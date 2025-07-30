@@ -10,6 +10,7 @@ def is_valid_live2d_json(file_path):
         return all(k in data for k in required_keys) and isinstance(data["motions"], dict)
     except Exception as e:
         # print(f"is_valid_live2d_json check failed for {file_path}: {e}") # For debugging
+
         return False
 
 def find_live2d_json_file(folder_path, max_depth=2):

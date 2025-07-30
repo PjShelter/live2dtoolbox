@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (
 from pages.batch_tool_page import BatchToolPage
 from pages.color_match_page import ColorMatchPage
 from pages.import_table_page import ImportTablePage
+from pages.jsonl_editor_page import JsonlEditorPage
 from pages.jsonl_generator_page import JsonlGeneratorPage
 from version_info import check_for_update_gui
 
@@ -112,6 +113,7 @@ class ToolBox(QWidget):
         self.page_color_match = ColorMatchPage()
         self.page_batch_tool = BatchToolPage()
         self.page_jsonl = JsonlGeneratorPage()
+        self.page_jsonl_editor=JsonlEditorPage()
         self.page_import = ImportTablePage()
 
         # 页面栈
@@ -119,6 +121,7 @@ class ToolBox(QWidget):
         self.stack.addWidget(self.page_color_match)
         self.stack.addWidget(self.page_batch_tool)
         self.stack.addWidget(self.page_jsonl)
+        self.stack.addWidget(self.page_jsonl_editor)
         self.stack.addWidget(self.page_import)
 
 
@@ -135,6 +138,7 @@ class ToolBox(QWidget):
             "🎨 色彩匹配",
             "🧰 live2d工具部分",
             "📦 生成 jsonl",
+            "✏️ 编辑 JSONL",
             "📊 IMPORT 参数表"
         ])
         self.menu.currentRowChanged.connect(self.switch_page)

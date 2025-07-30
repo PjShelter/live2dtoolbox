@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QFileDialog, QMessageBox, QCheckBox, QTextEdit, QDialog, QAbstractItemView
 )
 
-from sections.gen_jsonl import collect_jsons_to_jsonl, find_live2d_json_file
+from sections.gen_jsonl import collect_jsons_to_jsonl, find_live2d_json_file, is_valid_live2d_json
 from utils.common import save_config, get_resource_path
 
 
@@ -82,10 +82,19 @@ class JsonlGeneratorPage(QWidget):
             QMessageBox.warning(self, "⚠️", "请先选择根目录")
             return
 
-        for name in sorted(os.listdir(self.jsonl_root)):
-            full_path = os.path.join(self.jsonl_root, name)
-            if os.path.isdir(full_path) and not name.startswith("_"):
-                self.folder_list.addItem(name)
+        found_count = 0
+        for root, _, files in os.walk(self.jsonl_root):
+            for file in files:
+                if file.endswith(".json"):
+                    abs_path = os.path.join(root, file)
+                    # ✅ 只检查文件，不尝试对它 listdir
+                    if os.path.isfile(abs_path) and is_valid_live2d_json(abs_path):
+                        rel_path = os.path.relpath(abs_path, self.jsonl_root).replace("\\", "/")
+                        self.folder_list.addItem(rel_path)
+                        found_count += 1
+
+        if found_count == 0:
+            QMessageBox.information(self, "提示", "未找到任何合法的 model.json 文件")
 
     def move_folder_up(self):
         row = self.folder_list.currentRow()
@@ -112,33 +121,20 @@ class JsonlGeneratorPage(QWidget):
             return
 
         selected_items = self.folder_list.selectedItems()
-        selected_folders = [item.text() for item in selected_items]
+        selected_relative_paths = [item.text() for item in selected_items]
 
-        if not selected_folders:
+        if not selected_relative_paths:
             QMessageBox.warning(self, "⚠️", "请至少选择一个子目录")
             return
 
-        # ✅ 收集每个子目录下的合法 JSON 文件路径
-        valid_relative_paths = []
-        for folder in selected_folders:
-            abs_folder_path = os.path.join(self.jsonl_root, folder)
-            json_files = find_live2d_json_file(abs_folder_path)
-            if json_files:
-                abs_json_path = json_files[0]
-                rel_path = os.path.relpath(abs_json_path, self.jsonl_root).replace("\\", "/")
-                valid_relative_paths.append(rel_path)
-            else:
-                print(f"⚠️ 子目录中未找到合法 JSON 文件: {folder}")
-
-        if not valid_relative_paths:
-            QMessageBox.warning(self, "⚠️", "未找到任何合法的 model.json 文件")
-            return
+        # ✅ 已经是合法的 model.json 相对路径了，直接使用
+        valid_relative_paths = selected_relative_paths
 
         base_folder_name = os.path.basename(self.jsonl_root.rstrip(os.sep))
         output_path = os.path.join(self.jsonl_root, f"{base_folder_name}.jsonl")
 
         try:
-            collect_jsons_to_jsonl(self.jsonl_root, output_path, prefix, base_folder_name, valid_relative_paths)
+            collect_jsons_to_jsonl(self.jsonl_root, output_path, prefix, base_folder_name, selected_relative_paths)
 
             if self.append_import_checkbox.isChecked():
                 with open(output_path, "r", encoding="utf-8") as f:
