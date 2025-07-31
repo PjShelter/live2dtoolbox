@@ -15,6 +15,7 @@ from pages.color_match_page import ColorMatchPage
 from pages.import_table_page import ImportTablePage
 from pages.jsonl_editor_page import JsonlEditorPage
 from pages.jsonl_generator_page import JsonlGeneratorPage
+from pages.part_editor_page import PartEditorPage
 from version_info import check_for_update_gui
 
 CONFIG_PATH = "config.json"
@@ -116,12 +117,14 @@ class ToolBox(QWidget):
         self.page_jsonl = JsonlGeneratorPage()
         self.page_jsonl_editor=JsonlEditorPage()
         self.page_import = ImportTablePage()
+        self.page_part_editor = PartEditorPage()
         self.page_l2dw = L2dwConfPage()
 
         # 页面栈
         self.stack = QStackedLayout()
         self.stack.addWidget(self.page_color_match)
         self.stack.addWidget(self.page_batch_tool)
+        self.stack.addWidget(self.page_part_editor)
         self.stack.addWidget(self.page_jsonl)
         self.stack.addWidget(self.page_jsonl_editor)
         self.stack.addWidget(self.page_import)
@@ -139,6 +142,7 @@ class ToolBox(QWidget):
             "⬆️ 检查更新",
             "🎨 色彩匹配",
             "🧰 live2d工具部分",
+            "🧩 略爱区编辑器",
             "📦 生成 jsonl",
             "✏️ 编辑 JSONL",
             "📊 IMPORT 参数表",
