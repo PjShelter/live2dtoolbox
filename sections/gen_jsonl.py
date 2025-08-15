@@ -10,12 +10,11 @@ def is_valid_live2d_json(file_path):
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        required_keys = ["version", "layout", "model", "motions"]
-        return all(k in data for k in required_keys) and isinstance(data["motions"], dict)
-    except Exception as e:
-        # print(f"is_valid_live2d_json check failed for {file_path}: {e}") # For debugging
-
+        required_keys = ["version", "layout", "model"]
+        return all(k in data for k in required_keys)
+    except Exception:
         return False
+
 
 def find_live2d_json_file(folder_path, max_depth=2):
     json_files = []
