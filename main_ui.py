@@ -68,6 +68,8 @@ class FileSelectionDialog(QDialog):
         ]
 
 
+
+
 class Float2Encoder(json.JSONEncoder):
     def iterencode(self, o, _one_shot=False):
         for s in super().iterencode(o, _one_shot=_one_shot):
@@ -139,7 +141,6 @@ class ToolBox(QWidget):
 
         # 左侧菜单栏
         self.menu = QListWidget()
-        self.menu.setFixedWidth(140)
         self.menu.addItems([
             "🌈 切换主题",
             "⬆️ 检查更新",
@@ -149,10 +150,10 @@ class ToolBox(QWidget):
             "📦 生成 jsonl",
             "✏️ 编辑 JSONL",
             "📊 IMPORT 参数表",
-            "🔗 联动 L2DW 生成 conf(开发中)",
+            "🔗 联动 L2DW",
             "🪞 一键生成拼好模"
         ])
-        self.menu.currentRowChanged.connect(self.switch_page)
+        self.menu.itemClicked.connect(self.on_menu_item_clicked)
         # 检查更新按钮
         self.update_button = QPushButton("检查更新")
         self.update_button.setFixedWidth(120)
@@ -160,21 +161,54 @@ class ToolBox(QWidget):
 
 
         # 左侧垂直布局
+
+        # 左侧垂直布局
         left_layout = QVBoxLayout()
-        left_layout.addWidget(self.menu)
-        left_layout.addStretch()
+        left_layout.setContentsMargins(0, 0, 0, 0)  # ✔ 取消内边距
+        left_layout.setSpacing(0)  # ✔ 取消间距
+        # 让 menu 以 stretch=1 撑满
+        left_layout.addWidget(self.menu, 1)
+        # left_layout.addStretch()
 
         left_widget = QWidget()
         left_widget.setLayout(left_layout)
-        left_widget.setFixedWidth(150)
+        left_widget.setFixedWidth(200)  # 只固定外层宽度
+
+        stack_container = QWidget()
+        stack_container.setLayout(self.stack)
 
         # 总布局
         main_layout = QHBoxLayout()
-        main_layout.addWidget(left_widget)
-        main_layout.addLayout(self.stack)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        main_layout.addWidget(left_widget)  # 左：定宽
+        main_layout.addWidget(stack_container)  # 右：自适应
+        main_layout.setStretch(0, 0)  # 左栏不拉伸（定宽）
+        main_layout.setStretch(1, 1)  # 右侧内容拉伸
         self.setLayout(main_layout)
 
         self.apply_theme(self.theme_files[self.current_theme_index])
+
+    def on_menu_item_clicked(self, item):
+        idx = self.menu.row(item)
+        if idx == 0:  # 🌈 切换主题
+            self.toggle_theme()
+            # 清空选择，防止焦点返回时又选中第 0 行
+            self.menu.blockSignals(True)
+            self.menu.setCurrentRow(4)
+            self.menu.clearSelection()
+            self.menu.blockSignals(False)
+            return
+
+        if idx == 1:  # ⬆️ 检查更新
+            check_for_update_gui(self)
+            self.menu.blockSignals(True)
+            self.menu.clearSelection()
+            self.menu.blockSignals(False)
+            return
+
+        # 其它项是页面：按 (idx - 2) 对应 stack
+        self.stack.setCurrentIndex(idx - 2)
 
     def switch_page(self, index):
         if index == 0:

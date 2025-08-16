@@ -86,26 +86,34 @@ QScrollBar::add-line, QScrollBar::sub-line {
 
 /* QListWidget 外观统一 */
 QListWidget {
-    background-color: rgba(30, 30, 30, 180);
-    border: none;
+    background-color: #1e1e1e;            /* 取消半透明，形成侧栏块 */
+    border-right: 1px solid rgba(255,255,255,0.06);
     color: #f0f0f0;
     font-size: 14px;
-    padding: 4px;
+    padding: 8px;                         /* 给“胶囊”留出呼吸空间 */
 }
 
-/* 每项高度、圆角、hover 效果 */
+/* 每项：加大内边距 + 圆角；用 margin 拉开间距 */
 QListWidget::item {
-    padding: 8px 12px;
-    border-radius: 12px;
+    padding: 10px 12px;
+    margin: 4px 0;                        /* 让选中态像“pill” */
+    border-radius: 10px;
+    /* 预留左侧 6px 给选中态的色条 */
 }
 
-/* 高亮选中项：灰色圆角背景 */
-QListWidget::item:selected {
-    background-color: rgba(100, 100, 100, 180);
+/* 选中项：深色底 + 左侧高亮条；失焦也保持样式 */
+QListWidget::item:selected,
+QListWidget::item:selected:!active,
+QListWidget::item:selected:active {
+    background-color: rgba(100, 100, 100, 0.35);
     color: #ffffff;
+    border-left: 6px solid #7dd3fc;       /* 主题色可替换 */
 }
 
-/* 鼠标悬停项：略亮的灰色 */
+/* 悬停：更轻一些，避免与选中态打架 */
 QListWidget::item:hover {
-    background-color: rgba(80, 80, 80, 150);
+    background-color: rgba(255, 255, 255, 0.07);
 }
+
+/* 去掉虚线焦点框 */
+QListWidget:focus { outline: none; }

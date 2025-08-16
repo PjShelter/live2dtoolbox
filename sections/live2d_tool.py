@@ -10,87 +10,92 @@ def safe_relpath(path, start):
     except ValueError:
         return os.path.basename(path)
 
+def _compact_motion_groups(motions_dict: dict) -> dict:
+    """删除 value 为空列表的动作分组"""
+    return {k: v for k, v in motions_dict.items() if isinstance(v, list) and len(v) > 0}
 
 def sanitize_path(path):
     """去除路径两侧的引号，防止误识别"""
     return path.strip().strip('"')
 
-def remove_duplicates_and_check_files(model_json_path):
+def remove_duplicates_and_check_files(model_json_path,
+                                      skip_check: bool = False,
+                                      auto_remove_missing: bool = True):
     with open(model_json_path, "r", encoding="utf-8") as f:
         model = json.load(f)
 
     base_dir = os.path.dirname(model_json_path)
 
-
-
-    # 1️⃣ motions 去重并收集缺失文件（倒序处理，保留后出现的项）
     new_motions = defaultdict(list)
     seen_motion_files = set()
     missing_motion_entries = []
 
-    for motion_name, motion_list in model.get("motions", {}).items():
+    for motion_name, motion_list in (model.get("motions") or {}).items():
         reversed_list = list(reversed(motion_list))
         clean_list = []
         for motion in reversed_list:
-            file_path = motion["file"]
-            abs_path = os.path.join(base_dir, file_path)
-            if file_path in seen_motion_files:
-                print(f"⚠️ 跳过重复 motion: {file_path}")
+            file_path = motion.get("file", "")
+            if not file_path:
+                # 没有 file 字段的异常数据直接丢弃
                 continue
-            if not os.path.isfile(abs_path):
+            abs_path = os.path.normpath(os.path.join(base_dir, file_path))
+            if file_path in seen_motion_files:
+                continue
+            if (not skip_check) and (not os.path.isfile(abs_path)):
                 missing_motion_entries.append((motion_name, motion))
             else:
                 seen_motion_files.add(file_path)
-                clean_list.insert(0, motion)  # 重新插入到前面，恢复原顺序
+                clean_list.insert(0, motion)
         new_motions[motion_name] = clean_list
 
-    # 2️⃣ expressions 去重并收集缺失文件（同样倒序）
     seen_expression_files = set()
     new_expressions = []
     missing_expressions = []
 
-    reversed_exps = list(reversed(model.get("expressions", [])))
+    reversed_exps = list(reversed(model.get("expressions") or []))
     for expression in reversed_exps:
-        file_path = expression["file"]
-        abs_path = os.path.join(base_dir, file_path)
-        if file_path in seen_expression_files:
-            print(f"⚠️ 跳过重复 expression: {file_path}")
+        file_path = expression.get("file", "")
+        if not file_path:
             continue
-        if not os.path.isfile(abs_path):
+        abs_path = os.path.normpath(os.path.join(base_dir, file_path))
+        if file_path in seen_expression_files:
+            continue
+        if (not skip_check) and (not os.path.isfile(abs_path)):
             missing_expressions.append(expression)
         else:
             seen_expression_files.add(file_path)
-            new_expressions.insert(0, expression)  # 保持原顺序
+            new_expressions.insert(0, expression)
 
-    # 3️⃣ 缺失提示 + 删除确认
-    print("\n🧹 检测到缺失的动作和表情文件：")
-    print(f"  - 缺失动作文件数：{len(missing_motion_entries)}")
-    print(f"  - 缺失表情文件数：{len(missing_expressions)}")
+    # ✅ 无交互：按参数决定是否删除缺失项
+    if skip_check:
+        for motion_name, motion in missing_motion_entries:
+            new_motions[motion_name].append(motion)
+        model["motions"] = _compact_motion_groups(new_motions)
+        model["expressions"] = new_expressions + missing_expressions
 
-    if missing_motion_entries or missing_expressions:
-        confirm = input("是否删除以上所有丢失的动作/表情？(y/n): ").strip().lower()
-        if confirm == "y":
-            for motion_name, motion in missing_motion_entries:
-                print(f"🗑️ 删除 motion: {motion['file']}")
-            for expression in missing_expressions:
-                print(f"🗑️ 删除 expression: {expression['file']}")
 
-            # 删除缺失的，保留正常的
-            model["motions"] = new_motions
-            model["expressions"] = new_expressions
-        else:
-            # 不删除：保留新项 + 缺失项
-            for motion_name, motion in missing_motion_entries:
-                new_motions[motion_name].append(motion)
-            model["motions"] = new_motions
-            model["expressions"] = new_expressions + missing_expressions
+    # 2) auto_remove_missing=True 的分支（删除缺失项，并删除空分组）
+
+    elif auto_remove_missing:
+
+        model["motions"] = _compact_motion_groups(new_motions)  # ← 这里
+
+        model["expressions"] = new_expressions
+
+
+    # 3) auto_remove_missing=False 的分支（保留缺失项，但仍然删除空分组）
+
     else:
-        print("✅ 未发现缺失的动作或表情文件。")
+
+        for motion_name, motion in missing_motion_entries:
+            new_motions[motion_name].append(motion)
+
+        model["motions"] = _compact_motion_groups(new_motions)  # ← 这里
+
+        model["expressions"] = new_expressions + missing_expressions
 
     with open(model_json_path, "w", encoding="utf-8") as f:
         json.dump(model, f, ensure_ascii=False, indent=2)
-
-    print("✅ 去重、缺失检查与保存完成！")
 
 
 def scan_live2d_directory(directory):
@@ -132,6 +137,72 @@ def scan_live2d_directory(directory):
         del model_json["physics"]
 
     return model_json
+def _normalize_rel(p: str) -> str:
+    # 去引号、去前导 ./ 、统一斜杠
+    return p.strip().strip('"').strip("'").lstrip("./").replace("\\", "/")
+
+def _find_game_root(start_dir: str) -> str:
+    """从 jsonl 文件所在目录向上找名为 game 的目录；找不到就返回 start_dir"""
+    cur = start_dir
+    while True:
+        if os.path.basename(cur) == "game":
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            # 到顶了
+            return start_dir
+        cur = parent
+
+def _resolve_model_path(jsonl_dir: str, raw_path: str) -> str or None:
+    """
+    解析 JSONL 的 path，尽量找到真实的 model.json 绝对路径。
+    尝试顺序：
+      1) 若 raw_path 是绝对路径且存在 -> 直接返回
+      2) 规范化 raw_path；若以 'game/' 开头 -> 去掉该前缀
+      3) 以 game_root 作为基底，尝试:
+         a) game_root / rel
+         b) game_root / 'figure' / rel
+      4) 若仍不存在：在 game_root 下全局扫描，按“尾部匹配”寻找末尾是 rel 的路径
+    命中返回绝对路径；否则返回 None
+    """
+    raw_path = raw_path.strip()
+    if not raw_path:
+        return None
+
+    # 绝对路径直接验证
+    if os.path.isabs(raw_path) and os.path.isfile(raw_path):
+        return os.path.normpath(raw_path)
+
+    rel = _normalize_rel(raw_path)
+    game_root = _find_game_root(jsonl_dir)
+
+    # 兼容 'game/...' 前缀
+    if rel.startswith("game/"):
+        rel = rel[len("game/"):]
+
+    # 候选 1：<game_root>/<rel>
+    cand1 = os.path.normpath(os.path.join(game_root, rel))
+    if os.path.isfile(cand1):
+        return cand1
+
+    # 候选 2：<game_root>/figure/<rel>
+    cand2 = os.path.normpath(os.path.join(game_root, "figure", rel))
+    if os.path.isfile(cand2):
+        return cand2
+
+    # 候选 3：在 game_root 下扫描尾部匹配
+    # 例如 rel = '祥子妈后发/model.json'，找到以该尾部结尾的真实路径
+    tail = rel.replace("/", os.sep)
+    for dirpath, _, files in os.walk(game_root):
+        for fn in files:
+            if fn.lower() != "model.json":
+                continue
+            full = os.path.normpath(os.path.join(dirpath, fn))
+            # 尾部匹配：full 以 .../<tail> 结尾
+            if full.lower().endswith(tail.lower()):
+                return full
+
+    return None
 
 
 def update_model_json_bulk(model_json_path, new_files_or_dir, prefix=""):

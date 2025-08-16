@@ -87,22 +87,39 @@ QScrollBar::add-line, QScrollBar::sub-line {
     height: 0px;
 }
 
-/* 菜单栏 QListWidget */
+
+/* 列表整体 */
 QListWidget {
-    background-color: rgba(255, 255, 255, 0.1);
+    background: transparent;      /* 用父容器背景 */
     border: none;
     color: #333;
     font-size: 14px;
-    padding: 4px;
+    padding: 8px;                 /* 给 item 呼吸空间 */
 }
+
+/* 每项：间距 + 圆角胶囊 */
 QListWidget::item {
-    padding: 8px 12px;
+    padding: 10px 12px;
+    margin: 4px 0;
     border-radius: 12px;
 }
-QListWidget::item:selected {
-    background-color: #f9c5d1;
-    color: #fff;
+
+/* 选中项：浅底 + 左侧粉色条 */
+QListWidget::item:selected,
+QListWidget::item:selected:!active,
+QListWidget::item:selected:active {
+    background-color: rgba(255, 255, 255, 0.6);
+    color: #333;
+    border-left: 6px solid #f9c5d1;   /* 左边主题色条 */
+    font-weight: bold;
 }
+
+/* 悬停项：淡淡的粉蓝背景 */
 QListWidget::item:hover {
-    background-color: #fbdde5;
+    background-color: rgba(160, 196, 255, 0.25);
+}
+
+/* 去掉虚线焦点框 */
+QListWidget:focus {
+    outline: none;
 }

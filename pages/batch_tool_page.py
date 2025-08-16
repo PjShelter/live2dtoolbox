@@ -11,7 +11,7 @@ from sections.live2d_tool import (
     scan_live2d_directory,
     update_model_json_bulk,
     remove_duplicates_and_check_files,
-    batch_update_mtn_param_text
+    batch_update_mtn_param_text, _resolve_model_path
 )
 from utils.common import save_config
 
@@ -186,38 +186,35 @@ class BatchToolPage(QWidget):
 
         try:
             if path.endswith(".json"):
-                remove_duplicates_and_check_files(path)
+                remove_duplicates_and_check_files(path, skip_check=False, auto_remove_missing=True)
                 QMessageBox.information(self, "完成", f"已完成清理：{path}")
             elif path.endswith(".jsonl"):
                 with open(path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
 
                 jsonl_dir = os.path.dirname(path)
-                temp_parent = jsonl_dir
-                while os.path.basename(temp_parent) != "game" and os.path.dirname(temp_parent) != temp_parent:
-                    temp_parent = os.path.dirname(temp_parent)
-
                 success = 0
+
                 for idx, line in enumerate(lines):
                     try:
                         obj = json.loads(line)
-                        model_path = obj.get("path")
-                        if not model_path:
-                            print(f"⚠️ 第 {idx + 1} 行无 path 字段")
-                            continue
+                    except Exception:
+                        # 末尾 summary 行或其它非对象行，跳过
+                        continue
 
-                        if os.path.basename(temp_parent) == "game" and model_path.startswith("game/"):
-                            model_path = model_path[len("game/"):]
+                    model_path = obj.get("path")
+                    if not model_path:
+                        print(f"⚠️ 第 {idx + 1} 行无 path 字段，跳过")
+                        continue
 
-                        abs_path = os.path.normpath(os.path.join(temp_parent, model_path))
-                        if not os.path.isfile(abs_path):
-                            print(f"❌ model.json 文件不存在: {abs_path}")
-                            continue
+                    abs_path = _resolve_model_path(jsonl_dir, model_path)
+                    if not abs_path or not os.path.isfile(abs_path):
+                        print(f"❌ model.json 文件不存在（第 {idx + 1} 行）: 期望 {model_path}")
+                        continue
 
-                        remove_duplicates_and_check_files(abs_path)
-                        success += 1
-                    except Exception as e:
-                        print(f"❌ 第 {idx + 1} 行处理失败: {e}")
+                    # 无交互、自动删除缺失项
+                    remove_duplicates_and_check_files(abs_path, skip_check=False, auto_remove_missing=True)
+                    success += 1
 
                 QMessageBox.information(self, "完成", f"已清理 {success} 个 model.json")
         except Exception as e:
