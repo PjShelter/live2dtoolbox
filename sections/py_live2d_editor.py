@@ -2,8 +2,10 @@ import os
 import pygame
 import live2d.v2 as live2d
 
+from utils.common import _norm_id
 
-def get_all_parts( model_path):
+
+def get_all_parts(model_path):
     pygame.init()
     pygame.display.set_mode((1, 1), pygame.OPENGL | pygame.HIDDEN)
     live2d.init()
@@ -14,6 +16,40 @@ def get_all_parts( model_path):
     live2d.dispose()
     pygame.quit()
     return part_ids
+
+def get_all_param_info_list(model_json_path):
+    pygame.init()
+    pygame.display.set_mode((1, 1), pygame.OPENGL | pygame.HIDDEN)
+    live2d.init()
+    live2d.glewInit()
+
+    model = live2d.LAppModel()
+    model.LoadModelJson(model_json_path)
+
+    info_list = []
+    try:
+        count = model.GetParameterCount()
+        for i in range(count):
+            p = model.GetParameter(i)
+            pid = _norm_id(getattr(p, "id", ""))
+            pdefault = float(getattr(p, "default", 0.0) or 0.0)
+            pmin = float(getattr(p, "min", 0.0) or 0.0)
+            pmax = float(getattr(p, "max", 1.0) or 1.0)
+            pvalue = float(getattr(p, "value", pdefault) or pdefault)
+
+            info_list.append({
+                "id": pid,
+                "default": pdefault,
+                "min": pmin,
+                "max": pmax,
+                "value": pvalue,
+            })
+    finally:
+        # 先抽取完，再释放上下文
+        live2d.dispose()
+        pygame.quit()
+
+    return info_list
 
 def list_model_info(model_json_path):
     pygame.init()

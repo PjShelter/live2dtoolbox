@@ -42,3 +42,19 @@ def get_resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.abspath(relative_path)
+
+def _pget(p, key, default=None):
+    # 同时支持 dict 和 绑定对象属性
+    if isinstance(p, dict):
+        return p.get(key, default)
+    return getattr(p, key, default)
+
+def _norm_id(x):
+    try:
+        if isinstance(x, str):
+            return x
+        if isinstance(x, (bytes, bytearray)):
+            return x.decode("utf-8", errors="ignore")
+        return str(x)
+    except Exception:
+        return ""
