@@ -2,6 +2,19 @@ import os
 import pygame
 import live2d.v2 as live2d
 
+
+def get_all_parts( model_path):
+    pygame.init()
+    pygame.display.set_mode((1, 1), pygame.OPENGL | pygame.HIDDEN)
+    live2d.init()
+    live2d.glewInit()
+    model = live2d.LAppModel()
+    model.LoadModelJson(model_path)
+    part_ids = model.GetPartIds()
+    live2d.dispose()
+    pygame.quit()
+    return part_ids
+
 def list_model_info(model_json_path):
     pygame.init()
     pygame.display.set_mode((1, 1), pygame.OPENGL | pygame.HIDDEN)
@@ -22,6 +35,7 @@ def list_model_info(model_json_path):
     pygame.quit()
 
     return part_ids, param_info_list
+
 
 
 if __name__ == "__main__":

@@ -8,11 +8,13 @@ import errno
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog,
     QMessageBox, QListWidget, QListWidgetItem, QHBoxLayout, QTableWidget,
-    QHeaderView, QTableWidgetItem, QCheckBox, QLineEdit, QComboBox
+    QHeaderView, QTableWidgetItem, QCheckBox, QLineEdit, QComboBox,
+    QGroupBox, QFormLayout, QRadioButton
 )
 from PyQt5.QtCore import Qt
 
 from sections.gen_jsonl import is_valid_live2d_json
+from sections.py_live2d_editor import get_all_parts
 
 PARTS_JSON_PATH = os.path.join("resource", "parts.json")
 
@@ -44,6 +46,14 @@ def _fsync_file(path: str):
             os.fsync(f.fileno())
     except Exception:
         pass
+
+def _display_relpath(abs_path: str, base: str) -> str:
+    """用于 UI 显示的相对路径；跨盘失败则退化为文件名"""
+    try:
+        rel = os.path.relpath(abs_path, base)
+        return rel.replace("\\", "/")
+    except ValueError:
+        return os.path.basename(abs_path)
 
 def _fsync_dir(dir_path: str):
     try:
@@ -107,7 +117,6 @@ def safe_move(src: str, dst: str) -> str:
 
 
 # ========= 主页面 =========
-# ========= 主页面 =========
 class OpacityPresetPage(QWidget):
     def __init__(self):
         super().__init__()
@@ -167,6 +176,41 @@ class OpacityPresetPage(QWidget):
         self.json_table.setColumnWidth(4, 68)
         layout.addWidget(self.json_table)
 
+        # === 新增：从单一源 JSON 复制 motions/expressions 到勾选目标 ===
+        copy_group = QGroupBox("🧩 从单一源 JSON 复制 motions / expressions 到勾选目标")
+        copy_form = QFormLayout(copy_group)
+
+        self.src_json_edit = QLineEdit()
+        self.src_json_btn = QPushButton("选择源 JSON…")
+        self.src_json_btn.clicked.connect(self._browse_src_json)
+        row_src = QHBoxLayout()
+        row_src.addWidget(self.src_json_edit)
+        row_src.addWidget(self.src_json_btn)
+        copy_form.addRow("源 JSON：", row_src)
+
+        opts_row = QHBoxLayout()
+        self.rb_merge = QRadioButton("合并（去重）")
+        self.rb_overwrite = QRadioButton("覆盖")
+        self.rb_merge.setChecked(True)
+
+        self.cb_motions = QCheckBox("motions")
+        self.cb_expressions = QCheckBox("expressions")
+        self.cb_motions.setChecked(True)
+        self.cb_expressions.setChecked(True)
+
+        opts_row.addWidget(self.rb_merge)
+        opts_row.addWidget(self.rb_overwrite)
+        opts_row.addSpacing(16)
+        opts_row.addWidget(self.cb_motions)
+        opts_row.addWidget(self.cb_expressions)
+        copy_form.addRow("选项：", opts_row)
+
+        self.copy_btn = QPushButton("复制到勾选的目标")
+        self.copy_btn.clicked.connect(self.copy_src_fields_to_checked_rows)
+        copy_form.addRow(self.copy_btn)
+
+        layout.addWidget(copy_group)
+
         self.parts_data = {}
         self.root_dir = ""
         self.preset_names = []  # parts.json 的 key 列表（加载后填充）
@@ -206,11 +250,10 @@ class OpacityPresetPage(QWidget):
         # 填充来源子目录
         subdirs = self._list_first_level_subdirs(folder)
         self.source_subdir_combo.clear()
+        self.source_subdir_combo.setEnabled(False)
         if subdirs:
             self.source_subdir_combo.addItems(subdirs)
             self.source_subdir_combo.setEnabled(not self.all_subdirs_checkbox.isChecked())
-        else:
-            self.source_subdir_combo.setEnabled(False)
 
         # 枚举 model.json
         json_files = []
@@ -229,7 +272,7 @@ class OpacityPresetPage(QWidget):
         _collect_jsons(folder)
 
         # 填充表格（逐行可选预设）
-        for i, path in enumerate(json_files):
+        for i, abs_path in enumerate(json_files):
             self.json_table.insertRow(i)
 
             # ✔ 是否处理
@@ -237,25 +280,24 @@ class OpacityPresetPage(QWidget):
             checkbox.setChecked(True)
             self.json_table.setCellWidget(i, 0, checkbox)
 
-            # 路径
-            path_item = QTableWidgetItem(path)
+            # 路径列：显示相对路径，但把绝对路径放到 UserRole
+            disp = _display_relpath(abs_path, self.root_dir)
+            path_item = QTableWidgetItem(disp)
+            path_item.setData(Qt.UserRole, abs_path)  # ← 存绝对路径，后面读这个
             path_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
             self.json_table.setItem(i, 1, path_item)
 
-            # 检测到的预设
-            detected = self.detect_preset(path) or "无"
+            # 检测到的预设（用绝对路径进行检测）
+            detected = self.detect_preset(abs_path) or "无"
             detected_item = QTableWidgetItem(detected)
             detected_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
             self.json_table.setItem(i, 2, detected_item)
 
-            # 选择预设（默认跟随“检测到的预设”，否则“保持不变”）
+            # 选择预设
             preset_combo = QComboBox()
             options = ["保持不变", "清空(全0)"] + self.preset_names
             preset_combo.addItems(options)
-            if detected in self.preset_names:
-                preset_combo.setCurrentText(detected)
-            else:
-                preset_combo.setCurrentText("保持不变")
+            preset_combo.setCurrentText(detected if detected in self.preset_names else "保持不变")
             self.json_table.setCellWidget(i, 3, preset_combo)
 
             # 预览按钮
@@ -335,14 +377,14 @@ class OpacityPresetPage(QWidget):
             if not path_item or not combo:
                 continue
 
-            json_path = path_item.text()
+            json_path = path_item.data(Qt.UserRole)  # 绝对路径
             choice = combo.currentText().strip()
 
             if choice == "保持不变":
                 continue
 
             try:
-                all_parts = self.get_all_parts(json_path)
+                all_parts = get_all_parts(json_path)
                 if choice == "清空(全0)":
                     target_parts = set()
                 else:
@@ -364,7 +406,7 @@ class OpacityPresetPage(QWidget):
             except Exception as e:
                 print(f"❌ 处理失败: {json_path} 错误: {e}")
 
-        # —— 集中动作/表情（与你原逻辑一致）
+        # —— 集中动作/表情
         try:
             if traverse_all:
                 for dirpath, _, filenames in os.walk(self.root_dir):
@@ -423,14 +465,140 @@ class OpacityPresetPage(QWidget):
             f"跳过/失败：{skipped}"
         )
 
-    def get_all_parts(self, model_path):
-        pygame.init()
-        pygame.display.set_mode((1, 1), pygame.OPENGL | pygame.HIDDEN)
-        live2d.init()
-        live2d.glewInit()
-        model = live2d.LAppModel()
-        model.LoadModelJson(model_path)
-        part_ids = model.GetPartIds()
-        live2d.dispose()
-        pygame.quit()
-        return part_ids
+    # ========= 新增：从单一源 JSON 复制到勾选目标 =========
+    def _browse_src_json(self):
+        path, _ = QFileDialog.getOpenFileName(self, "选择源 model.json", filter="JSON (*.json)")
+        if path:
+            self.src_json_edit.setText(path)
+
+    def copy_src_fields_to_checked_rows(self):
+        src_path = self.src_json_edit.text().strip()
+        if not (src_path and os.path.isfile(src_path)):
+            QMessageBox.warning(self, "⚠️", "请先选择正确的源 model.json")
+            return
+        if not (self.cb_motions.isChecked() or self.cb_expressions.isChecked()):
+            QMessageBox.warning(self, "⚠️", "请至少勾选 motions 或 expressions 之一")
+            return
+
+        # 读取源
+        try:
+            with open(src_path, "r", encoding="utf-8") as f:
+                src_obj = json.load(f)
+        except Exception as e:
+            QMessageBox.critical(self, "❌ 出错", f"读取源 JSON 失败：\n{e}")
+            return
+
+        mode = "merge" if self.rb_merge.isChecked() else "overwrite"
+        success, fail = 0, 0
+
+        # 对勾选行执行复制
+        for row in range(self.json_table.rowCount()):
+            cb = self.json_table.cellWidget(row, 0)
+            if not (cb and cb.isChecked()):
+                continue
+            path_item = self.json_table.item(row, 1)
+            if not path_item:
+                continue
+            dst_path = path_item.data(Qt.UserRole)
+            if not (dst_path and os.path.isfile(dst_path)):
+                continue
+
+            try:
+                with open(dst_path, "r", encoding="utf-8") as f:
+                    dst_obj = json.load(f)
+
+                if self.cb_motions.isChecked():
+                    dst_obj = self._apply_copy_for_field("motions", src_obj, dst_obj, mode)
+                if self.cb_expressions.isChecked():
+                    dst_obj = self._apply_copy_for_field("expressions", src_obj, dst_obj, mode)
+
+                self._safe_backup(dst_path)
+                with open(dst_path, "w", encoding="utf-8") as f:
+                    json.dump(dst_obj, f, ensure_ascii=False, indent=2)
+                success += 1
+            except Exception as e:
+                print(f"[复制失败] {dst_path}: {e}")
+                fail += 1
+
+        QMessageBox.information(self, "完成", f"复制完成：成功 {success} 个，失败 {fail} 个。")
+
+    def _apply_copy_for_field(self, field: str, src_obj: dict, target: dict, mode: str):
+        s_val = src_obj.get(field)
+        t_val = target.get(field)
+
+        if mode == "overwrite":
+            merged = self._merge_field_values(s_val, None, None)
+            if merged is not None:
+                target[field] = merged
+            else:
+                target.pop(field, None)
+        else:
+            merged = self._merge_field_values(s_val, None, t_val)
+            if merged is not None:
+                target[field] = merged
+            else:
+                target.pop(field, None)
+        return target
+
+    def _merge_field_values(self, a_val, b_val, t_val):
+        """
+        合并两大类结构并去重：
+        1) dict: { "name": [ {"file": "..."} ] }
+        2) list: [ {"name":"...", "file":"..."} ]
+        a_val: 源；b_val: 兼容占位，这里固定 None；t_val: 目标原值
+        """
+        if a_val is None and t_val is None:
+            return None
+
+        has_dict = any(isinstance(v, dict) for v in (a_val, t_val) if v is not None)
+
+        if has_dict:
+            # 目标结构：dict[str, list[{"file": "..."}]]
+            base = {}
+            for src in (t_val, a_val):  # 先保留 target，再叠加源
+                if not isinstance(src, dict):
+                    continue
+                for k, arr in src.items():
+                    if not isinstance(arr, list):
+                        continue
+                    bucket = base.setdefault(k, [])
+                    seen = {json.dumps(x, sort_keys=True) for x in bucket if isinstance(x, dict)}
+                    for x in arr:
+                        if not isinstance(x, dict):
+                            continue
+                        key = json.dumps(x, sort_keys=True)
+                        if key not in seen:
+                            bucket.append(x)
+                            seen.add(key)
+            return base if base else None
+        else:
+            # 目标结构：list[{"name": "...", "file": "..."}]
+            merged_list = []
+            seen_pairs = set()
+
+            def add_from(src):
+                if not isinstance(src, list):
+                    return
+                for x in src:
+                    if not isinstance(x, dict):
+                        continue
+                    name = x.get("name")
+                    file_ = x.get("file")
+                    key = (name, file_)
+                    if key not in seen_pairs:
+                        merged_list.append(x)
+                        seen_pairs.add(key)
+
+            for src in (t_val, a_val):
+                add_from(src)
+
+            return merged_list if merged_list else None
+
+    def _safe_backup(self, path: str):
+        try:
+            bak = path + ".bak"
+            if not os.path.exists(bak):
+                import shutil
+                shutil.copy2(path, bak)
+        except Exception:
+            pass
