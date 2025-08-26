@@ -11,12 +11,14 @@ from PyQt5.QtCore import Qt
 
 from sections.gen_jsonl import collect_jsons_to_jsonl, is_valid_live2d_json
 from sections.py_live2d_editor import get_all_param_info_list
-from utils.common import save_config, get_resource_path, _norm_id, _pget
+from utils.common import save_config, get_resource_path, _norm_id, _pget, _to_key
 
 # ===== Live2D 依赖（用于一键计算）=====
 import pygame
+
 try:
     import live2d.v2 as live2d
+
     _LIVE2D_OK = True
 except Exception:
     _LIVE2D_OK = False
@@ -198,6 +200,7 @@ class JsonlPreviewDialog(QDialog):
     “一键计算 x/y”：读取 deformer_import.json 的 OriginX/OriginY，与 Live2D 的 PARAM_IMPORT 参数值结合计算。
     点击“保存并完成”时，询问最终保存路径并写出正式 JSONL 文件。
     """
+
     def __init__(self, temp_jsonl_path: str, base_dir: str, default_save_dir: str,
                  summary_import: int = None, parent=None):
         super().__init__(parent)
@@ -209,17 +212,21 @@ class JsonlPreviewDialog(QDialog):
         self.default_save_dir = default_save_dir
         self.summary_import = summary_import
 
-        self.data = []          # 普通行
-        self.summary_lines = [] # motions/expressions 行
+        self.data = []  # 普通行
+        self.summary_lines = []  # motions/expressions 行
 
         layout = QVBoxLayout(self)
 
         # ===== 默认值区域 =====
         defaults_row = QHBoxLayout()
-        self.x_default = QLineEdit(); self.x_default.setPlaceholderText("x 默认 (可空)")
-        self.y_default = QLineEdit(); self.y_default.setPlaceholderText("y 默认 (可空)")
-        self.xs_default = QLineEdit(); self.xs_default.setPlaceholderText("xscale 默认 (可空)")
-        self.ys_default = QLineEdit(); self.ys_default.setPlaceholderText("yscale 默认 (可空)")
+        self.x_default = QLineEdit();
+        self.x_default.setPlaceholderText("x 默认 (可空)")
+        self.y_default = QLineEdit();
+        self.y_default.setPlaceholderText("y 默认 (可空)")
+        self.xs_default = QLineEdit();
+        self.xs_default.setPlaceholderText("xscale 默认 (可空)")
+        self.ys_default = QLineEdit();
+        self.ys_default.setPlaceholderText("yscale 默认 (可空)")
         self.apply_all_btn = QPushButton("应用到全部")
         self.apply_all_btn.clicked.connect(self.apply_defaults_to_all)
         for w in (self.x_default, self.y_default, self.xs_default, self.ys_default, self.apply_all_btn):
@@ -320,6 +327,10 @@ class JsonlPreviewDialog(QDialog):
         import os, json
         from PyQt5.QtWidgets import QMessageBox, QTableWidgetItem
 
+        LIVE2D_Y_MAX = 2000.0  # 大多数立绘画幅 2000x2000
+        WEBGAL_CANVAS_H = 1440  # WebGAL 高度
+        SCALE_Y = WEBGAL_CANVAS_H / LIVE2D_Y_MAX  # 0.72
+
         # ---- 读取 deformer_import.json ----
         deform = None
         for p in [
@@ -343,6 +354,7 @@ class JsonlPreviewDialog(QDialog):
             QMessageBox.warning(self, "提示", "请在“Import ID”输入框填写目标 Import ID（例如 50）。")
             return
 
+        # 工具：与 utils.common 同名函数保持一致
         def _to_key(s):
             s = str(s).strip()
             if s == "":
@@ -352,6 +364,22 @@ class JsonlPreviewDialog(QDialog):
             except Exception:
                 return s
 
+        def _pget(p, key, default=None):
+            if isinstance(p, dict):
+                return p.get(key, default)
+            return getattr(p, key, default)
+
+        def _norm_id(x):
+            try:
+                if isinstance(x, str):
+                    return x
+                if isinstance(x, (bytes, bytearray)):
+                    return x.decode("utf-8", errors="ignore")
+                return str(x)
+            except Exception:
+                return ""
+
+        # 目标 import 的键与数值
         target_key = _to_key(ui_import_raw)
         target_entry = deform.get(target_key)
         if not isinstance(target_entry, dict):
@@ -360,9 +388,18 @@ class JsonlPreviewDialog(QDialog):
         target_x = float(target_entry.get("OriginX", 0.0))
         target_y = float(target_entry.get("OriginY", 0.0))
 
+        # 目标 import 的“数值”（用于范围判定）
+        try:
+            target_import_val = float(ui_import_raw)
+        except Exception:
+            # 如果输入不是数值（比如特殊键名），就不做范围检测，只做坐标计算
+            target_import_val = None
+
         headers = ["index", "id", "path", "folder", "x", "y", "xscale", "yscale"]
         success, fail = 0, 0
 
+        # === 新增：收集“范围不覆盖目标 import”的模型信息 ===
+        not_covered = []  # [(row_index, model_basename, min, max)]
 
         for row in range(self.table.rowCount()):
             path_item = self.table.item(row, headers.index("path"))
@@ -382,14 +419,42 @@ class JsonlPreviewDialog(QDialog):
                 if not param_info_list:
                     raise RuntimeError("未获取到模型参数")
 
+                # 找到一个 PARAM_IMPORT*，用其 default 作为“本行”的键；同时收集它们的 min/max 以做范围检验
                 default_key = None
+                import_ranges = []  # [(min, max)]
                 for p in param_info_list:
                     pid = _norm_id(_pget(p, "id", ""))
                     if pid.startswith("PARAM_IMPORT"):
+                        # 记录范围
+                        try:
+                            pmin = float(_pget(p, "min", float("-inf")) or 0.0)
+                        except Exception:
+                            pmin = float("-inf")
+                        try:
+                            pmax = float(_pget(p, "max", float("inf")) or 0.0)
+                        except Exception:
+                            pmax = float("inf")
+                        import_ranges.append((pmin, pmax))
+
+                        # 取 default -> 键
                         d = _pget(p, "default", None)
-                        if d is not None:
-                            default_key = _to_key(d)
-                            break
+                        if d is not None and default_key is None:
+                            try:
+                                default_key = _to_key(d)
+                            except Exception:
+                                pass
+
+                if not import_ranges:
+                    raise RuntimeError("未找到任何 PARAM_IMPORT 参数")
+
+                # === 范围检测：目标 import 必须在任一 IMPORT 的 [min, max] 里才算覆盖 ===
+                if target_import_val is not None:
+                    covered_here = any((rng[0] <= target_import_val <= rng[1]) for rng in import_ranges)
+                    if not covered_here:
+                        # 取一个代表性的范围显示（第 1 个）
+                        rmin, rmax = import_ranges[0]
+                        not_covered.append((row, os.path.basename(model_path), rmin, rmax))
+
                 if not default_key:
                     raise RuntimeError("未找到 PARAM_IMPORT 的 default 值")
 
@@ -400,11 +465,11 @@ class JsonlPreviewDialog(QDialog):
                 row_x = float(row_entry.get("OriginX", 0.0))
                 row_y = float(row_entry.get("OriginY", 0.0))
 
-                # 4) 差值 = 目标 - 本行(default对应) → 需要写入的相对量
+                # 差值（Live2D 坐标系）
                 delta_x = target_x - row_x
-                delta_y = target_y - row_y
+                delta_y = (target_y - row_y) * SCALE_Y  # 仅对 Y 做比例缩放
 
-                # 5) 回写表格（x/y 填差值）
+                # 回写表格（x/y 填相对量）
                 for k, v in (("x", delta_x), ("y", delta_y)):
                     col = headers.index(k)
                     item = self.table.item(row, col)
@@ -419,7 +484,24 @@ class JsonlPreviewDialog(QDialog):
                 print(f"[计算失败] {model_path}: {e}")
                 fail += 1
 
-        QMessageBox.information(self, "完成", f"已计算 {success} 行；失败 {fail} 行。")
+        # === 结束提示：附带“统一 import”建议 ===
+        if target_import_val is not None and len(not_covered) == 0:
+            # 所有模型都覆盖目标 import
+            QMessageBox.information(
+                self,
+                "完成",
+                f"已计算 {success} 行；失败 {fail} 行。\n\n"
+                f"✅ 所有模型的 PARAM_IMPORT 取值范围都覆盖目标 import={target_import_val}。\n"
+                f"可以在主界面勾选“统一 import”，并填写 {int(round(target_import_val))} 以统一导出。"
+            )
+        else:
+            extra = ""
+            if target_import_val is not None and not_covered:
+                lines = []
+                for r, name, rmin, rmax in not_covered:
+                    lines.append(f" - 行 {r + 1}（{name}）范围 [{rmin}, {rmax}] 不覆盖 {target_import_val}")
+                extra = "\n\n⚠️ 部分模型范围不覆盖目标 import：\n" + "\n".join(lines)
+            QMessageBox.information(self, "完成", f"已计算 {success} 行；失败 {fail} 行。{extra}")
 
     # ---------- 另存为（最终写出 JSONL） ----------
     def save_as_jsonl(self):

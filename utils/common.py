@@ -7,6 +7,8 @@ import numpy as np
 
 CONFIG_PATH = "config.json"
 
+
+
 def format_transform_code(transform_dict: dict) -> str:
     def to_builtin(x):
         if isinstance(x, (np.float32, np.float64)):
@@ -58,3 +60,12 @@ def _norm_id(x):
         return str(x)
     except Exception:
         return ""
+
+def _to_key(s):
+    s = str(s).strip()
+    if s == "":
+        return None
+    try:
+        return str(int(round(float(s))))  # e.g. "50.0" -> "50"
+    except Exception:
+        return s
