@@ -15,3 +15,9 @@ error.log
 .env
 output_conf
 lut
+
+# Python virtual environment
+.venv/
+venv/
+env/
+ENV/

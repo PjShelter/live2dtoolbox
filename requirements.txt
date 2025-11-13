@@ -1,0 +1,26 @@
+# Live2D Toolbox Dependencies
+# Python GUI Framework
+PyQt5>=5.15.0
+
+# Image Processing
+Pillow>=9.0.0
+
+# Numerical Computing
+numpy>=1.21.0
+
+# Data Visualization
+matplotlib>=3.5.0
+
+# HTTP Requests (for version checking)
+requests>=2.28.0
+
+# Environment Variable Management
+python-dotenv>=0.19.0
+
+# Game Library (for Live2D functionality)
+pygame>=2.1.0
+
+# Live2D Python Bindings
+# Note: live2d library may need to be installed separately
+# live2d>=0.1.0
+
