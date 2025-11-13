@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-CURRENT_VERSION = "1.2.7"
+CURRENT_VERSION = "1.2.8"
 GITHUB_REPO = "KonshinHaoshin/gen_model"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 

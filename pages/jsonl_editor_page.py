@@ -1,5 +1,7 @@
 import json
 import os
+import sys
+import threading
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QFileDialog, QTableWidget,
     QTableWidgetItem, QHBoxLayout, QMessageBox, QLabel, QHeaderView
@@ -12,6 +14,9 @@ class JsonlEditorPage(QWidget):
         super().__init__(parent)
         self.jsonl_path = ""
         self.data = []
+        # 预览窗口相关
+        self.preview_thread = None  # 预览窗口线程引用
+        self.preview_window = None  # 预览窗口实例引用（用于关闭）
 
         self.layout = QVBoxLayout(self)
 
@@ -23,9 +28,12 @@ class JsonlEditorPage(QWidget):
         self.save_btn.clicked.connect(self.save_jsonl)
         self.save_as_btn = QPushButton("📝 另存为 JSONL")
         self.save_as_btn.clicked.connect(self.save_as_jsonl)
+        self.preview_btn = QPushButton("👁️ 预览模型")
+        self.preview_btn.clicked.connect(self.preview_models)
         btn_layout.addWidget(self.load_btn)
         btn_layout.addWidget(self.save_btn)
         btn_layout.addWidget(self.save_as_btn)
+        btn_layout.addWidget(self.preview_btn)
 
 
         self.layout.addLayout(btn_layout)
@@ -176,5 +184,70 @@ class JsonlEditorPage(QWidget):
             QMessageBox.information(self, "保存成功", f"文件已保存为：{save_path}")
         except Exception as e:
             QMessageBox.critical(self, "保存失败", str(e))
+
+    def preview_models(self):
+        """预览 JSONL 文件中的模型"""
+        if not self.jsonl_path or not os.path.isfile(self.jsonl_path):
+            QMessageBox.warning(self, "未加载文件", "请先导入 JSONL 文件")
+            return
+
+        if not self.data:
+            QMessageBox.warning(self, "无数据", "JSONL 文件中没有有效的模型数据")
+            return
+
+        # 检查是否已有预览窗口在运行
+        if self.preview_thread is not None and self.preview_thread.is_alive():
+            reply = QMessageBox.question(
+                self,
+                "预览窗口已打开",
+                "预览窗口正在运行中。\n\n是否关闭当前预览窗口并打开新的？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                # 尝试关闭旧的预览窗口
+                self._close_preview_window()
+            else:
+                return
+
+        # 在单独线程中运行预览窗口（避免阻塞 UI）
+        self.preview_thread = threading.Thread(target=self._run_preview_window, daemon=True)
+        self.preview_thread.start()
+
+    def _close_preview_window(self):
+        """关闭预览窗口"""
+        if self.preview_window is not None:
+            try:
+                # 如果预览窗口有关闭方法，调用它
+                if hasattr(self.preview_window, 'close'):
+                    self.preview_window.close()
+                elif hasattr(self.preview_window, 'running'):
+                    self.preview_window.running = False
+            except Exception as e:
+                print(f"关闭预览窗口时出错: {e}")
+            finally:
+                self.preview_window = None
+        
+        # 等待线程结束（最多等待 1 秒）
+        if self.preview_thread is not None and self.preview_thread.is_alive():
+            self.preview_thread.join(timeout=1.0)
+            if self.preview_thread.is_alive():
+                print("警告: 预览窗口线程未能及时关闭")
+
+    def _run_preview_window(self):
+        """在独立线程中运行预览窗口"""
+        try:
+            from pages.jsonl_preview_window import JsonlPreviewWindow
+            self.preview_window = JsonlPreviewWindow(self.jsonl_path, self.data)
+            self.preview_window.run()
+        except Exception as e:
+            # 使用 QMessageBox 需要在主线程，这里用 print
+            print(f"预览窗口启动失败: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # 清理引用
+            self.preview_window = None
+            # 注意：不要在这里设置 self.preview_thread = None，因为线程可能还在运行
 
 

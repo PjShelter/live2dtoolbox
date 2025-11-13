@@ -15,6 +15,7 @@ error.log
 .env
 output_conf
 lut
+__pycache__
 
 # Python virtual environment
 .venv/
