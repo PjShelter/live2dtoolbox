@@ -55,10 +55,9 @@ class JsonlPreviewWindow:
         self.base_width = 2560.0
         self.base_height = 1440.0
         # 预览窗口尺寸（按比例缩放，保持 16:9 比例）
-        # 计算合适的预览窗口尺寸，保持与 2560x1440 相同的宽高比
-        preview_scale = 0.5  # 预览窗口缩放比例（可以根据需要调整）
-        self.canvas_width = int(self.base_width * preview_scale)  # 1280
-        self.canvas_height = int(self.base_height * preview_scale)  # 720
+        preview_scale = 0.4  # 预览窗口缩放比例（降低以提高性能）
+        self.canvas_width = int(self.base_width * preview_scale)  # 1024
+        self.canvas_height = int(self.base_height * preview_scale)  # 576
         
     def _parse_import_from_jsonl(self):
         """从 JSONL 文件中解析 import 参数"""
@@ -216,7 +215,12 @@ class JsonlPreviewWindow:
         
         # 创建窗口
         display = (self.canvas_width, self.canvas_height)
-        screen = pygame.display.set_mode(display, pygame.DOUBLEBUF | pygame.OPENGL)
+        # 尝试使用硬件加速和 VSync
+        try:
+            screen = pygame.display.set_mode(display, pygame.DOUBLEBUF | pygame.OPENGL | pygame.HWSURFACE)
+        except:
+            # 如果硬件加速失败，回退到基本模式
+            screen = pygame.display.set_mode(display, pygame.DOUBLEBUF | pygame.OPENGL)
         pygame.display.set_caption("JSONL 模型预览 - 按 ESC 退出")
         
         # 计算缩放比例（参考 WebGAL 的实现）
@@ -302,26 +306,39 @@ class JsonlPreviewWindow:
         clock = pygame.time.Clock()
         
         print("预览窗口已启动，按 ESC 或关闭窗口退出")
+        print(f"目标帧率: 30 FPS，窗口尺寸: {self.canvas_width}x{self.canvas_height}")
+        
+        # 性能统计
+        frame_count = 0
+        last_fps_time = pygame.time.get_ticks()
         
         while self.running:
-            # 处理事件
-            for event in pygame.event.get():
+            # 批量处理事件，提高效率
+            events = pygame.event.get()
+            mouse_moved = False
+            mouse_x, mouse_y = 0, 0
+            
+            for event in events:
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.running = False
                 elif event.type == pygame.MOUSEMOTION:
-                    # 鼠标拖拽
-                    x, y = pygame.mouse.get_pos()
-                    if LIVE2D_V2_AVAILABLE:
-                        for model in self.models_v2:
-                            model.Drag(x, y)
-                    if LIVE2D_V3_AVAILABLE:
-                        for model in self.models_v3:
-                            model.Drag(x, y)
+                    # 记录鼠标位置，稍后统一处理
+                    mouse_moved = True
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
             
-            # 清空缓冲区
+            # 只在鼠标移动时处理拖拽（减少不必要的调用）
+            if mouse_moved:
+                if LIVE2D_V2_AVAILABLE:
+                    for model in self.models_v2:
+                        model.Drag(mouse_x, mouse_y)
+                if LIVE2D_V3_AVAILABLE:
+                    for model in self.models_v3:
+                        model.Drag(mouse_x, mouse_y)
+            
+            # 清空缓冲区（每帧都需要）
             if LIVE2D_V3_AVAILABLE:
                 live2d_v3.clearBuffer()
             if LIVE2D_V2_AVAILABLE:
@@ -342,7 +359,19 @@ class JsonlPreviewWindow:
             
             # 刷新显示
             pygame.display.flip()
-            clock.tick(60)  # 限制帧率为 60 FPS
+            
+            # 限制帧率为 30 FPS（提高稳定性）
+            clock.tick(30)
+            
+            # 每 60 帧输出一次 FPS（可选，用于调试）
+            frame_count += 1
+            if frame_count % 60 == 0:
+                current_time = pygame.time.get_ticks()
+                elapsed = (current_time - last_fps_time) / 1000.0
+                if elapsed > 0:
+                    fps = 60 / elapsed 
+                    print(f"当前 FPS: {fps:.1f}")
+                last_fps_time = current_time
         
         # 设置运行标志为 False
         self.running = False
