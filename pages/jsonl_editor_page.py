@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem, QHBoxLayout, QMessageBox, QLabel, QHeaderView, QLineEdit, QGroupBox
 )
 from PyQt5.QtCore import Qt
+from utils.common import save_config, load_config
 
 
 class JsonlEditorPage(QWidget):
@@ -64,9 +65,25 @@ class JsonlEditorPage(QWidget):
         self.layout.addWidget(self.table)
 
     def load_jsonl(self):
-        path, _ = QFileDialog.getOpenFileName(self, "选择 JSONL 文件", "", "JSONL 文件 (*.jsonl)")
+        # 读取上次打开的目录
+        config = load_config()
+        last_open_dir = config.get("jsonl_last_open_dir", "")
+        if not last_open_dir or not os.path.isdir(last_open_dir):
+            last_open_dir = ""
+        
+        path, _ = QFileDialog.getOpenFileName(
+            self, 
+            "选择 JSONL 文件", 
+            last_open_dir,  # 使用上次打开的目录
+            "JSONL 文件 (*.jsonl)"
+        )
         if not path:
             return
+        
+        # 保存本次打开的目录到配置
+        open_dir = os.path.dirname(path)
+        if open_dir and os.path.isdir(open_dir):
+            save_config({"jsonl_last_open_dir": open_dir})
 
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -188,12 +205,25 @@ class JsonlEditorPage(QWidget):
             return
 
         # 选择保存路径
-        dir_path = os.path.dirname(self.jsonl_path)
+        # 优先使用上次保存的目录，其次使用当前文件所在目录
+        config = load_config()
+        last_save_dir = config.get("jsonl_last_save_dir", "")
+        if last_save_dir and os.path.isdir(last_save_dir):
+            default_path = os.path.join(last_save_dir, "new_file.jsonl")
+        else:
+            dir_path = os.path.dirname(self.jsonl_path)
+            default_path = os.path.join(dir_path, "new_file.jsonl")
+        
         save_path, _ = QFileDialog.getSaveFileName(
-            self, "另存为 JSONL 文件", os.path.join(dir_path, "new_file.jsonl"), "JSONL 文件 (*.jsonl)"
+            self, "另存为 JSONL 文件", default_path, "JSONL 文件 (*.jsonl)"
         )
         if not save_path:
             return
+        
+        # 保存本次保存的目录到配置
+        save_dir = os.path.dirname(save_path)
+        if save_dir and os.path.isdir(save_dir):
+            save_config({"jsonl_last_save_dir": save_dir})
 
         try:
             # 构建新的 JSONL 内容

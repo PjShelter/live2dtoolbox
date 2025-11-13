@@ -25,8 +25,11 @@ def save_config(config: dict):
     if not isinstance(config, dict):
         print("⚠️ 配置不是字典类型，跳过保存")
         return
+    # 读取现有配置并合并，避免覆盖其他配置项
+    existing_config = load_config()
+    existing_config.update(config)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+        json.dump(existing_config, f, indent=2, ensure_ascii=False)
 
 def load_config() -> dict:
     if not os.path.exists(CONFIG_PATH):

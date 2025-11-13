@@ -11,7 +11,7 @@ from PyQt5.QtCore import Qt
 
 from sections.gen_jsonl import collect_jsons_to_jsonl, is_valid_live2d_json
 from sections.py_live2d_editor import get_all_param_info_list
-from utils.common import save_config, get_resource_path, _norm_id, _pget, _to_key
+from utils.common import save_config, load_config, get_resource_path, _norm_id, _pget, _to_key
 
 # ===== Live2D 依赖（用于一键计算）=====
 import pygame
@@ -528,14 +528,27 @@ class JsonlPreviewDialog(QDialog):
 
         # 询问保存路径
         from PyQt5.QtWidgets import QFileDialog
+        # 读取上次保存的目录
+        config = load_config()
+        last_save_dir = config.get("jsonl_last_save_dir", "")
+        if last_save_dir and os.path.isdir(last_save_dir):
+            default_path = os.path.join(last_save_dir, "model.jsonl")
+        else:
+            default_path = os.path.join(self.default_save_dir, "model.jsonl")
+        
         save_path, _ = QFileDialog.getSaveFileName(
             self,
             "保存 JSONL",
-            os.path.join(self.default_save_dir, "model.jsonl"),  # ✅ 默认文件名与默认目录
+            default_path,  # ✅ 使用上次保存的目录或默认目录
             "JSONL 文件 (*.jsonl)"
         )
         if not save_path:
             return
+        
+        # 保存本次保存的目录到配置
+        save_dir = os.path.dirname(save_path)
+        if save_dir and os.path.isdir(save_dir):
+            save_config({"jsonl_last_save_dir": save_dir})
 
         # 组装最终行：普通行 + summary 行（必要时覆盖 summary.import）
         try:

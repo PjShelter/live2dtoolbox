@@ -19,6 +19,8 @@ try:
 except ImportError:
     LIVE2D_V3_AVAILABLE = False
     live2d_v3 = None
+# 搞不好jsonl会支持moc3呢
+# 哈哈，进军pjsk
 
 LIVE2D_AVAILABLE = LIVE2D_V2_AVAILABLE or LIVE2D_V3_AVAILABLE
 
