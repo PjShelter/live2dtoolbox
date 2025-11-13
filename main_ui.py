@@ -3,7 +3,7 @@ import os
 import json
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QCloseEvent
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QListWidget, QDialogButtonBox, QListWidgetItem, QDialog,
     QStackedLayout, QComboBox, QPushButton
@@ -231,6 +231,15 @@ class ToolBox(QWidget):
         self.current_theme_index = (self.current_theme_index + 1) % len(self.theme_files)
         self.apply_theme(self.theme_files[self.current_theme_index])
         self.theme_button.setText(f"切换主题：{self.theme_names[self.current_theme_index]}")
+
+    def closeEvent(self, event: QCloseEvent):
+        """主窗口关闭事件，确保关闭所有预览窗口"""
+        # 关闭 JSONL 编辑页面的预览窗口
+        if hasattr(self.page_jsonl_editor, '_close_preview_window'):
+            self.page_jsonl_editor._close_preview_window()
+        
+        # 接受关闭事件
+        event.accept()
 
 
 

@@ -51,12 +51,14 @@ class JsonlPreviewWindow:
         self.model_configs = []  # [(model, x, y, xscale, yscale, is_v3)]
         
         # 坐标系参数（参考 WebGAL 的实现）
-        # Live2D 标准画布尺寸（大多数立绘是 2000x2000）
-        self.base_width = 2000.0
-        self.base_height = 2000.0
-        # 预览窗口尺寸
-        self.canvas_width = 1200
-        self.canvas_height = 800
+        # Live2D 目标画布尺寸（2560x1440）
+        self.base_width = 2560.0
+        self.base_height = 1440.0
+        # 预览窗口尺寸（按比例缩放，保持 16:9 比例）
+        # 计算合适的预览窗口尺寸，保持与 2560x1440 相同的宽高比
+        preview_scale = 0.5  # 预览窗口缩放比例（可以根据需要调整）
+        self.canvas_width = int(self.base_width * preview_scale)  # 1280
+        self.canvas_height = int(self.base_height * preview_scale)  # 720
         
     def _parse_import_from_jsonl(self):
         """从 JSONL 文件中解析 import 参数"""
@@ -258,32 +260,26 @@ class JsonlPreviewWindow:
             model.Resize(*display)
             
             # 坐标转换：参考 WebGAL 的实现
-            # JSONL 中的 x, y 是基于 baseWidth/baseHeight 的坐标
-            # 需要转换为画布坐标：
-            # px = x * scaleX
-            # py = y * scaleY
-            # container.x = baseX + px
-            # container.y = baseY + py
-            px = x * self.scale_x
-            py = y * self.scale_y
+            # JSONL 中的 x, y 是基于 baseWidth/baseHeight (2560x1440) 的坐标
+            # WebGAL 中的转换逻辑：
+            # px = (position.x ?? 0) * scaleX  // scaleX = canvasWidth / baseWidth
+            # py = (position.y ?? 0) * scaleY  // scaleY = canvasHeight / baseHeight
+            # container.x = baseX + px  // baseX = canvasWidth / 2
+            # container.y = baseY + py  // baseY = canvasHeight / 2
+            #
+            # 但是 SetOffset 的参数可能是基于模型尺寸的归一化坐标
+            # 参考代码中 SetOffset(-0.5, 0.0) 表示向左移动模型宽度的一半
             
-            # 最终位置 = 基线位置 + 缩放后的偏移
-            final_x = self.base_x + px
-            final_y = self.base_y + py
+            # 步骤1: 将 JSONL 坐标转换为预览窗口的像素坐标
+            px = x * self.scale_x  # 基于 2560x1440 的 x 转换为预览窗口像素
+            py = y * self.scale_y  # 基于 2560x1440 的 y 转换为预览窗口像素
             
-            # SetOffset 使用归一化坐标（-1 到 1），参考代码中 SetOffset(-0.5, 0.0) 是归一化的
-            # 计算相对于画布中心的偏移（像素）
-            offset_x = final_x - self.base_x  # 相对于中心的偏移（像素）
-            offset_y = final_y - self.base_y
-            
-            # 转换为归一化坐标：归一化 = 偏移 / (画布尺寸 / 2)
-            # 这样 -1 对应画布左边缘，0 对应中心，1 对应右边缘
-            normalized_x = offset_x / (self.canvas_width / 2.0) if self.canvas_width > 0 else 0.0
-            normalized_y = offset_y / (self.canvas_height / 2.0) if self.canvas_height > 0 else 0.0
-            
-            # 限制归一化坐标范围，避免模型移出窗口
-            normalized_x = max(-1.0, min(1.0, normalized_x))
-            normalized_y = max(-1.0, min(1.0, normalized_y))
+            # 步骤2: 转换为归一化坐标
+            # SetOffset 的参数可能是基于 baseWidth/baseHeight 的归一化坐标
+            # 即：normalized = (JSONL坐标) / (baseWidth或baseHeight / 2)
+            # 这样可以直接使用 JSONL 中的 x, y 值进行归一化
+            normalized_x = -x / (self.base_width / 2.0) if self.base_width > 0 else 0.0
+            normalized_y = -y / (self.base_height / 2.0) if self.base_height > 0 else 0.0
             
             # 使用归一化坐标设置位置
             model.SetOffset(normalized_x, normalized_y)
@@ -296,7 +292,7 @@ class JsonlPreviewWindow:
             if abs(yscale - xscale) > 0.001:
                 print(f"警告: 模型 yscale ({yscale}) 与 xscale ({xscale}) 不同，但 SetScale 可能只支持统一缩放")
             
-            print(f"模型位置: JSONL(x={x}, y={y}) -> 偏移(px={offset_x:.1f}, py={offset_y:.1f}) -> 归一化(nx={normalized_x:.3f}, ny={normalized_y:.3f}), 缩放={xscale}")
+            print(f"模型位置: JSONL(x={x}, y={y}) -> 偏移(px={px:.1f}, py={py:.1f}) -> 归一化(nx={normalized_x:.3f}, ny={normalized_y:.3f}), 缩放={xscale}")
             
             # 调试：检查模型是否在可见范围内
             if abs(normalized_x) > 1.0 or abs(normalized_y) > 1.0:

@@ -195,20 +195,10 @@ class JsonlEditorPage(QWidget):
             QMessageBox.warning(self, "无数据", "JSONL 文件中没有有效的模型数据")
             return
 
-        # 检查是否已有预览窗口在运行
+        # 检查是否已有预览窗口在运行，如果有则直接关闭
         if self.preview_thread is not None and self.preview_thread.is_alive():
-            reply = QMessageBox.question(
-                self,
-                "预览窗口已打开",
-                "预览窗口正在运行中。\n\n是否关闭当前预览窗口并打开新的？",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            if reply == QMessageBox.Yes:
-                # 尝试关闭旧的预览窗口
-                self._close_preview_window()
-            else:
-                return
+            # 直接关闭旧的预览窗口
+            self._close_preview_window()
 
         # 在单独线程中运行预览窗口（避免阻塞 UI）
         self.preview_thread = threading.Thread(target=self._run_preview_window, daemon=True)
