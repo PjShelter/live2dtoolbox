@@ -4,7 +4,7 @@ import sys
 import threading
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QFileDialog, QTableWidget,
-    QTableWidgetItem, QHBoxLayout, QMessageBox, QLabel, QHeaderView
+    QTableWidgetItem, QHBoxLayout, QMessageBox, QLabel, QHeaderView, QLineEdit, QGroupBox
 )
 from PyQt5.QtCore import Qt
 
@@ -14,6 +14,7 @@ class JsonlEditorPage(QWidget):
         super().__init__(parent)
         self.jsonl_path = ""
         self.data = []
+        self.summary_line = None  # 保存 summary 行（包含 motions/expressions/import）
         # 预览窗口相关
         self.preview_thread = None  # 预览窗口线程引用
         self.preview_window = None  # 预览窗口实例引用（用于关闭）
@@ -42,6 +43,18 @@ class JsonlEditorPage(QWidget):
         self.path_label = QLabel("未加载")
         self.layout.addWidget(self.path_label)
 
+        # Import 参数编辑区域
+        import_group = QGroupBox("Import 参数（最后一行）")
+        import_layout = QHBoxLayout()
+        import_layout.addWidget(QLabel("import:"))
+        self.import_input = QLineEdit()
+        self.import_input.setPlaceholderText("输入数字（例如：100）")
+        self.import_input.setMaximumWidth(200)
+        import_layout.addWidget(self.import_input)
+        import_layout.addStretch()
+        import_group.setLayout(import_layout)
+        self.layout.addWidget(import_group)
+
         # 表格展示
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(["index", "id", "path", "folder", "x", "y", "xscale", "yscale"])
@@ -62,6 +75,7 @@ class JsonlEditorPage(QWidget):
             self.jsonl_path = path
             self.path_label.setText(f"当前文件：{path}")
             self.data = []
+            self.summary_line = None
 
             self.table.setRowCount(0)
 
@@ -71,7 +85,15 @@ class JsonlEditorPage(QWidget):
                     continue
                 obj = json.loads(line)
                 if "motions" in obj or "expressions" in obj:
-                    continue  # 跳过 summary 行
+                    # 保存 summary 行
+                    self.summary_line = obj
+                    # 读取 import 参数并显示
+                    import_val = obj.get("import")
+                    if import_val is not None:
+                        self.import_input.setText(str(import_val))
+                    else:
+                        self.import_input.clear()
+                    continue
                 self.data.append(obj)
 
             self.refresh_table()
@@ -116,6 +138,17 @@ class JsonlEditorPage(QWidget):
             for line in lines:
                 obj = json.loads(line)
                 if "motions" in obj or "expressions" in obj:
+                    # 更新 summary 行的 import 参数
+                    import_text = self.import_input.text().strip()
+                    if import_text:
+                        try:
+                            obj["import"] = int(import_text)
+                        except ValueError:
+                            QMessageBox.warning(self, "警告", f"import 参数必须是整数，当前值：{import_text}")
+                            return
+                    elif "import" in obj:
+                        # 如果输入框为空，删除 import 字段
+                        del obj["import"]
                     new_lines.append(json.dumps(obj, ensure_ascii=False) + '\n')
                 else:
                     new_lines.append(json.dumps(self.data[idx], ensure_ascii=False) + '\n')
@@ -168,12 +201,23 @@ class JsonlEditorPage(QWidget):
             for obj in self.data:
                 lines.append(json.dumps(obj, ensure_ascii=False) + "\n")
 
-            # 添加原始 JSONL 的 summary 行
+            # 添加原始 JSONL 的 summary 行（更新 import 参数）
             with open(self.jsonl_path, "r", encoding="utf-8") as f:
                 for line in f:
                     try:
                         obj = json.loads(line.strip())
                         if "motions" in obj or "expressions" in obj:
+                            # 更新 import 参数
+                            import_text = self.import_input.text().strip()
+                            if import_text:
+                                try:
+                                    obj["import"] = int(import_text)
+                                except ValueError:
+                                    QMessageBox.warning(self, "警告", f"import 参数必须是整数，当前值：{import_text}")
+                                    return
+                            elif "import" in obj:
+                                # 如果输入框为空，删除 import 字段
+                                del obj["import"]
                             lines.append(json.dumps(obj, ensure_ascii=False) + "\n")
                     except:
                         continue

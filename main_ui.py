@@ -12,7 +12,6 @@ from PyQt5.QtWidgets import (
 from pages.L2dwConfPage import L2dwConfPage
 from pages.OpacityPresetPage import OpacityPresetPage
 from pages.batch_tool_page import BatchToolPage
-from pages.color_match_page import ColorMatchPage
 from pages.import_table_page import ImportTablePage
 from pages.jsonl_editor_page import JsonlEditorPage
 from pages.jsonl_generator_page import JsonlGeneratorPage
@@ -115,7 +114,6 @@ class ToolBox(QWidget):
 
 
         # 页面初始化
-        self.page_color_match = ColorMatchPage()
         self.page_batch_tool = BatchToolPage()
         self.page_jsonl = JsonlGeneratorPage()
         self.page_jsonl_editor=JsonlEditorPage()
@@ -126,7 +124,6 @@ class ToolBox(QWidget):
 
         # 页面栈
         self.stack = QStackedLayout()
-        self.stack.addWidget(self.page_color_match)
         self.stack.addWidget(self.page_batch_tool)
         self.stack.addWidget(self.page_part_editor)
         self.stack.addWidget(self.page_jsonl)
@@ -144,7 +141,6 @@ class ToolBox(QWidget):
         self.menu.addItems([
             "🌈 切换主题",
             "⬆️ 检查更新",
-            "🎨 色彩匹配",
             "🧰 live2d工具部分",
             "🧩 略爱区编辑器",
             "📦 生成 jsonl",
@@ -195,7 +191,7 @@ class ToolBox(QWidget):
             self.toggle_theme()
             # 清空选择，防止焦点返回时又选中第 0 行
             self.menu.blockSignals(True)
-            self.menu.setCurrentRow(4)
+            self.menu.setCurrentRow(3)
             self.menu.clearSelection()
             self.menu.blockSignals(False)
             return
