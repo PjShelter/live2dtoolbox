@@ -336,6 +336,7 @@ class JsonlPreviewDialog(QDialog):
         for p in [
             os.path.join(os.path.dirname(self.jsonl_path), "deformer_import.json"),
             os.path.join(os.getcwd(), "deformer_import.json"),
+            get_resource_path("deformer_import.json"),  # 从打包资源读取
         ]:
             if os.path.isfile(p):
                 try:

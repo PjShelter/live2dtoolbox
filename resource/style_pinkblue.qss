@@ -15,6 +15,13 @@ QPushButton {
     border-radius: 14px;
     padding: 8px 16px;
 }
+
+/* 表格中的按钮：减小 padding，确保在单元格中正常显示 */
+QTableWidget QPushButton {
+    padding: 4px 8px;
+    min-width: 40px;
+    min-height: 20px;
+}
 QPushButton:hover {
     background-color: rgba(255, 255, 255, 0.85);
     border: 1px solid #f9c5d1;
@@ -53,6 +60,10 @@ QHeaderView::section {
     padding: 6px;
     border: none;
 }
+QTableWidget::item {
+    padding: 4px;  /* 增加内边距，使行看起来更高 */
+}
+
 QTableWidget::item:selected {
     background-color: #a0c4ff;
     color: white;

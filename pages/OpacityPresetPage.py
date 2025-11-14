@@ -4,19 +4,23 @@ import shutil
 import pygame
 import live2d.v2 as live2d
 import errno
+import threading
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog,
     QMessageBox, QListWidget, QListWidgetItem, QHBoxLayout, QTableWidget,
     QHeaderView, QTableWidgetItem, QCheckBox, QLineEdit, QComboBox,
-    QGroupBox, QFormLayout, QRadioButton
+    QGroupBox, QFormLayout, QRadioButton, QDialog
 )
 from PyQt5.QtCore import Qt
 
 from sections.gen_jsonl import is_valid_live2d_json
 from sections.py_live2d_editor import get_all_parts
+from pages.single_model_preview_window import SingleModelPreviewWindow
+from pages.opacity_detail_editor_dialog import OpacityDetailEditorDialog
+from utils.common import get_resource_path
 
-PARTS_JSON_PATH = os.path.join("resource", "parts.json")
+PARTS_JSON_PATH = get_resource_path(os.path.join("resource", "parts.json"))
 
 
 # ========= 通用工具 =========
@@ -168,12 +172,12 @@ class OpacityPresetPage(QWidget):
         # ✅ 表格：按行选择预设
         self.json_table = QTableWidget()
         self.json_table.setColumnCount(5)
-        self.json_table.setHorizontalHeaderLabels(["✔", "model.json 路径", "检测到的预设", "选择预设", "预览"])
+        self.json_table.setHorizontalHeaderLabels(["✔", "model.json 路径", "检测到的预设", "选择预设", "操作"])
         self.json_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.json_table.setColumnWidth(0, 44)
         self.json_table.setColumnWidth(2, 120)
         self.json_table.setColumnWidth(3, 160)
-        self.json_table.setColumnWidth(4, 68)
+        self.json_table.setColumnWidth(4, 130)  # 增加操作列宽度，确保两个按钮能显示
         layout.addWidget(self.json_table)
 
         # === 新增：从单一源 JSON 复制 motions/expressions 到勾选目标 ===
@@ -214,6 +218,10 @@ class OpacityPresetPage(QWidget):
         self.parts_data = {}
         self.root_dir = ""
         self.preset_names = []  # parts.json 的 key 列表（加载后填充）
+        # 预览窗口相关
+        self.preview_thread = None  # 预览窗口线程引用
+        self.preview_window = None  # 预览窗口实例引用（用于关闭）
+        self.main_window = None  # 主窗口引用
         self.load_parts_json()
 
     def load_parts_json(self):
@@ -300,28 +308,228 @@ class OpacityPresetPage(QWidget):
             preset_combo.setCurrentText(detected if detected in self.preset_names else "保持不变")
             self.json_table.setCellWidget(i, 3, preset_combo)
 
-            # 预览按钮
+            # 预览和详细编辑按钮
+            btn_layout = QHBoxLayout()
+            btn_layout.setContentsMargins(4, 2, 4, 2)
+            btn_layout.setSpacing(4)
+            
             preview_btn = QPushButton("查看")
+            preview_btn.setMinimumSize(50, 24)
+            preview_btn.setMaximumSize(60, 28)
             preview_btn.clicked.connect(lambda _, row=i: self.preview_row_preset(row))
-            self.json_table.setCellWidget(i, 4, preview_btn)
+            btn_layout.addWidget(preview_btn)
+            
+            detail_btn = QPushButton("详细")
+            detail_btn.setMinimumSize(50, 24)
+            detail_btn.setMaximumSize(60, 28)
+            detail_btn.clicked.connect(lambda _, row=i: self.open_detail_editor(row))
+            btn_layout.addWidget(detail_btn)
+            
+            btn_widget = QWidget()
+            btn_widget.setLayout(btn_layout)
+            self.json_table.setCellWidget(i, 4, btn_widget)
 
     def preview_row_preset(self, row: int):
-        """弹窗展示该行 Combo 选中预设包含的部件数量/列表"""
+        """预览该行模型（根据选中的预设创建虚拟 JSON 并打开预览窗口）"""
+        # 如果已有预览窗口在运行，先关闭它
+        if self.preview_thread and self.preview_thread.is_alive():
+            self._close_preview_window()
+        
+        # 获取模型路径
+        path_item = self.json_table.item(row, 1)
+        if not path_item:
+            QMessageBox.warning(self, "错误", "无法获取模型路径")
+            return
+        
+        model_json_path = path_item.data(Qt.UserRole)  # 绝对路径
+        if not model_json_path or not os.path.isfile(model_json_path):
+            QMessageBox.warning(self, "错误", f"模型文件不存在：{model_json_path}")
+            return
+        
+        # 获取选中的预设
         combo = self.json_table.cellWidget(row, 3)
         if not combo:
+            QMessageBox.warning(self, "错误", "无法获取预设选择")
             return
-        name = combo.currentText()
-        if name == "保持不变":
-            QMessageBox.information(self, "预览", "保持不变（不修改该 model.json 的 init_opacities）")
+        
+        preset_name = combo.currentText()
+        print(f"🔍 预览预设: {preset_name}, 模型路径: {model_json_path}")
+        
+        # 根据预设创建 init_opacities
+        init_opacities = None
+        if preset_name == "保持不变":
+            # 使用原始 JSON 中的 init_opacities（在预览窗口中会读取）
+            init_opacities = None
+            print("📌 使用原始 init_opacities")
+        elif preset_name == "清空(全0)":
+            # 获取所有部件，全部设为 0
+            try:
+                all_parts = get_all_parts(model_json_path)
+                init_opacities = [{"id": pid, "value": 0.0} for pid in all_parts]
+                print(f"📌 清空预设: 共 {len(init_opacities)} 个部件，全部设为 0")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"获取部件列表失败：{e}")
+                return
+        else:
+            # 使用预设的部件列表
+            target_parts = set(self.parts_data.get(preset_name, []))
+            print(f"📌 预设 '{preset_name}' 包含的部件: {target_parts}")
+            if not target_parts:
+                QMessageBox.warning(self, "警告", f"预设 '{preset_name}' 未找到或为空，请检查 parts.json")
+                return
+            try:
+                all_parts = get_all_parts(model_json_path)
+                print(f"📌 模型共有 {len(all_parts)} 个部件")
+                init_opacities = [
+                    {"id": pid, "value": 1.0 if pid in target_parts else 0.0}
+                    for pid in all_parts
+                ]
+                # 统计实际设置为 1.0 的部件数量
+                visible_count = sum(1 for item in init_opacities if item["value"] == 1.0)
+                print(f"📌 创建的 init_opacities: 共 {len(init_opacities)} 个，其中 {visible_count} 个可见（value=1.0）")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"获取部件列表失败：{e}")
+                return
+        
+        # 禁用主窗口
+        if self.main_window:
+            self.main_window.disable_main_window()
+        
+        # 创建预览窗口并在线程中运行
+        try:
+            self.preview_window = SingleModelPreviewWindow(model_json_path, init_opacities)
+            
+            def run_preview():
+                try:
+                    self.preview_window.run()
+                except Exception as e:
+                    print(f"预览窗口运行错误: {e}")
+                    import traceback
+                    traceback.print_exc()
+                finally:
+                    # 预览窗口关闭后，启用主窗口
+                    if self.main_window:
+                        self.main_window.enable_main_window()
+            
+            self.preview_thread = threading.Thread(target=run_preview, daemon=True)
+            self.preview_thread.start()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"启动预览失败：{e}")
+            import traceback
+            traceback.print_exc()
+            # 如果启动失败，也要启用主窗口
+            if self.main_window:
+                self.main_window.enable_main_window()
+    
+    def open_detail_editor(self, row: int):
+        """打开详细编辑对话框"""
+        # 获取模型路径
+        path_item = self.json_table.item(row, 1)
+        if not path_item:
+            QMessageBox.warning(self, "错误", "无法获取模型路径")
             return
-        if name == "清空(全0)":
-            QMessageBox.information(self, "预览", "清空：所有部件透明度置 0")
+        
+        model_json_path = path_item.data(Qt.UserRole)  # 绝对路径
+        if not model_json_path or not os.path.isfile(model_json_path):
+            QMessageBox.warning(self, "错误", f"模型文件不存在：{model_json_path}")
             return
-        parts = self.parts_data.get(name, [])
-        QMessageBox.information(
-            self, "预览",
-            f"预设：{name}\n包含 {len(parts)} 个部件ID：\n" + (", ".join(parts[:100]) + (" ..." if len(parts) > 100 else ""))
-        )
+        
+        # 获取当前的预设和 init_opacities
+        combo = self.json_table.cellWidget(row, 3)
+        if not combo:
+            QMessageBox.warning(self, "错误", "无法获取预设选择")
+            return
+        
+        preset_name = combo.currentText()
+        
+        # 根据预设创建当前的 init_opacities
+        current_init_opacities = None
+        if preset_name == "保持不变":
+            # 读取原始 JSON 中的 init_opacities
+            try:
+                with open(model_json_path, "r", encoding="utf-8") as f:
+                    model_data = json.load(f)
+                current_init_opacities = model_data.get("init_opacities", [])
+            except Exception as e:
+                QMessageBox.warning(self, "警告", f"读取原始 init_opacities 失败：{e}")
+                current_init_opacities = []
+        elif preset_name == "清空(全0)":
+            # 获取所有部件，全部设为 0
+            try:
+                all_parts = get_all_parts(model_json_path)
+                current_init_opacities = [{"id": pid, "value": 0.0} for pid in all_parts]
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"获取部件列表失败：{e}")
+                return
+        else:
+            # 使用预设的部件列表
+            target_parts = set(self.parts_data.get(preset_name, []))
+            try:
+                all_parts = get_all_parts(model_json_path)
+                current_init_opacities = [
+                    {"id": pid, "value": 1.0 if pid in target_parts else 0.0}
+                    for pid in all_parts
+                ]
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"获取部件列表失败：{e}")
+                return
+        
+        # 打开编辑对话框
+        dialog = OpacityDetailEditorDialog(model_json_path, current_init_opacities, self)
+        if dialog.exec_() == QDialog.Accepted:
+            # 获取编辑后的 init_opacities
+            new_init_opacities = dialog.get_init_opacities()
+            
+            # 如果预览窗口正在运行，更新它
+            if self.preview_window and self.preview_thread and self.preview_thread.is_alive():
+                # 更新预览窗口的 init_opacities
+                self.preview_window.init_opacities = new_init_opacities
+                
+                # 重新应用透明度设置
+                try:
+                    if self.preview_window.model:
+                        part_ids = self.preview_window.model.GetPartIds()
+                        part_id_to_index = {part_id: idx for idx, part_id in enumerate(part_ids)}
+                        
+                        for item in new_init_opacities:
+                            part_id = item.get("id")
+                            opacity = float(item.get("value", 0.0))
+                            
+                            if part_id in part_id_to_index:
+                                part_index = part_id_to_index[part_id]
+                                if hasattr(self.preview_window.model, "SetPartOpacity"):
+                                    self.preview_window.model.SetPartOpacity(part_index, opacity)
+                                elif hasattr(self.preview_window.model, "SetPart"):
+                                    self.preview_window.model.SetPart(part_index, opacity)
+                        
+                        print(f"✅ 已更新预览窗口的透明度设置")
+                except Exception as e:
+                    print(f"⚠️ 更新预览窗口透明度时出错: {e}")
+            
+            QMessageBox.information(self, "完成", "已更新透明度设置！\n"
+                                                   "如果预览窗口正在运行，已自动应用更改。")
+    
+    def set_main_window(self, main_window):
+        """设置主窗口引用"""
+        self.main_window = main_window
+    
+    def _close_preview_window(self):
+        """关闭预览窗口"""
+        if self.preview_window:
+            try:
+                self.preview_window.running = False
+            except:
+                pass
+        if self.preview_thread and self.preview_thread.is_alive():
+            # 等待线程结束（最多等待 1 秒）
+            self.preview_thread.join(timeout=1.0)
+        self.preview_window = None
+        self.preview_thread = None
+        
+        # 启用主窗口
+        if self.main_window:
+            self.main_window.enable_main_window()
 
     def detect_preset(self, json_path):
         try:

@@ -1,7 +1,5 @@
 {
-  "后发": [
-    "PARTS_01_HAIR_BACK_001"
-  ],
+  "后发": ["PARTS_01_HAIR_BACK_001"],
   "身体": [
     "PARTS_01_ARM_R_001",
     "PARTS_01_ARM_L_001",
@@ -21,8 +19,5 @@
     "PARTS_01_HAIR_FRONT_001",
     "PARTS_01_HAIR_SIDE_001"
   ],
-  "帽子": [
-    "PARTS_HAT",
-    "PARTS_01_HAT"
-  ]
+  "帽子": ["PARTS_HAT", "PARTS_01_HAT"]
 }

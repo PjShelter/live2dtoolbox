@@ -1,9 +1,11 @@
 import json
+import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QFileDialog,
     QLineEdit, QPushButton, QHBoxLayout, QLabel
 )
 from PyQt5.QtCore import Qt
+from utils.common import get_resource_path
 
 
 class ImportTablePage(QWidget):
@@ -56,8 +58,11 @@ class ImportTablePage(QWidget):
         self.table.setSelectionMode(QTableWidget.ExtendedSelection)
         self.layout.addWidget(self.table)
 
-        # 默认加载当前工作目录下的文件
-        self.load_json("name_import.json")
+        # 默认加载打包资源或当前工作目录下的文件
+        default_path = get_resource_path("name_import.json")
+        if not os.path.exists(default_path):
+            default_path = "name_import.json"
+        self.load_json(default_path)
 
     def load_json_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "选择 name_import.json", "", "JSON 文件 (*.json)")
@@ -69,9 +74,11 @@ class ImportTablePage(QWidget):
             with open(path, "r", encoding="utf-8") as f:
                 self.full_data = json.load(f)
 
-            # deformer_import.json 与 name_import.json 同目录下
-            import os
+            # deformer_import.json 与 name_import.json 同目录下，或从打包资源加载
             deform_path = os.path.join(os.path.dirname(path), "deformer_import.json")
+            if not os.path.exists(deform_path):
+                # 尝试从打包资源加载
+                deform_path = get_resource_path("deformer_import.json")
             with open(deform_path, "r", encoding="utf-8") as f:
                 self.deformer_data = json.load(f)
 

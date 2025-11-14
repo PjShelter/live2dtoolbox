@@ -9,6 +9,8 @@ from PyQt5.QtWidgets import (
     QStackedLayout, QComboBox, QPushButton
 )
 
+from utils.common import save_config, load_config, get_resource_path
+
 from pages.L2dwConfPage import L2dwConfPage
 from pages.OpacityPresetPage import OpacityPresetPage
 from pages.batch_tool_page import BatchToolPage
@@ -121,6 +123,11 @@ class ToolBox(QWidget):
         self.page_part_editor = PartEditorPage()
         self.page_l2dw = L2dwConfPage()
         self.page_opacity_preset = OpacityPresetPage()
+        
+        # 将主窗口引用传递给需要预览功能的页面
+        self.page_jsonl_editor.set_main_window(self)
+        self.page_opacity_preset.set_main_window(self)
+        self.page_part_editor.set_main_window(self)
 
         # 页面栈
         self.stack = QStackedLayout()
@@ -150,6 +157,9 @@ class ToolBox(QWidget):
             "🪞 一键生成拼好模"
         ])
         self.menu.itemClicked.connect(self.on_menu_item_clicked)
+        
+        # 加载上次选择的页面（必须在 menu 和 stack 创建之后）
+        self.load_last_selected_page()
         # 检查更新按钮
         self.update_button = QPushButton("检查更新")
         self.update_button.setFixedWidth(120)
@@ -204,7 +214,10 @@ class ToolBox(QWidget):
             return
 
         # 其它项是页面：按 (idx - 2) 对应 stack
-        self.stack.setCurrentIndex(idx - 2)
+        page_index = idx - 2
+        self.stack.setCurrentIndex(page_index)
+        # 保存当前选择的页面
+        self.save_selected_page(page_index)
 
     def switch_page(self, index):
         if index == 0:
@@ -216,7 +229,7 @@ class ToolBox(QWidget):
         else:
             self.stack.setCurrentIndex(index - 2)
     def apply_theme(self, theme_name):
-        path = os.path.join("resource", f"{theme_name}.qss")
+        path = get_resource_path(os.path.join("resource", f"{theme_name}.qss"))
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 self.setStyleSheet(f.read())
@@ -228,11 +241,62 @@ class ToolBox(QWidget):
         self.apply_theme(self.theme_files[self.current_theme_index])
         self.theme_button.setText(f"切换主题：{self.theme_names[self.current_theme_index]}")
 
+    def disable_main_window(self):
+        """禁用主窗口的所有操作"""
+        self.setEnabled(False)
+        # 禁用菜单栏
+        self.menu.setEnabled(False)
+        # 禁用所有页面
+        for i in range(self.stack.count()):
+            widget = self.stack.widget(i)
+            if widget:
+                widget.setEnabled(False)
+    
+    def enable_main_window(self):
+        """启用主窗口的所有操作"""
+        self.setEnabled(True)
+        # 启用菜单栏
+        self.menu.setEnabled(True)
+        # 启用所有页面
+        for i in range(self.stack.count()):
+            widget = self.stack.widget(i)
+            if widget:
+                widget.setEnabled(True)
+    
+    def save_selected_page(self, page_index: int):
+        """保存当前选择的页面索引到 config.json"""
+        save_config({"last_selected_page": page_index})
+    
+    def load_last_selected_page(self):
+        """从 config.json 加载上次选择的页面"""
+        config = load_config()
+        last_page = config.get("last_selected_page", 0)
+        
+        # 确保索引有效
+        if 0 <= last_page < self.stack.count():
+            self.stack.setCurrentIndex(last_page)
+            # 更新菜单选中状态（菜单索引 = 页面索引 + 2）
+            menu_index = last_page + 2
+            if menu_index < self.menu.count():
+                self.menu.setCurrentRow(menu_index)
+    
     def closeEvent(self, event: QCloseEvent):
         """主窗口关闭事件，确保关闭所有预览窗口"""
         # 关闭 JSONL 编辑页面的预览窗口
         if hasattr(self.page_jsonl_editor, '_close_preview_window'):
             self.page_jsonl_editor._close_preview_window()
+        
+        # 关闭透明度预设页面的预览窗口
+        if hasattr(self.page_opacity_preset, '_close_preview_window'):
+            self.page_opacity_preset._close_preview_window()
+        
+        # 关闭略爱区编辑器的预览窗口
+        if hasattr(self.page_part_editor, '_close_preview_window'):
+            self.page_part_editor._close_preview_window()
+        
+        # 保存当前选择的页面
+        current_index = self.stack.currentIndex()
+        self.save_selected_page(current_index)
         
         # 接受关闭事件
         event.accept()

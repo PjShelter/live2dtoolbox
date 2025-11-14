@@ -19,6 +19,7 @@ class JsonlEditorPage(QWidget):
         # 预览窗口相关
         self.preview_thread = None  # 预览窗口线程引用
         self.preview_window = None  # 预览窗口实例引用（用于关闭）
+        self.main_window = None  # 主窗口引用
 
         self.layout = QVBoxLayout(self)
 
@@ -274,10 +275,18 @@ class JsonlEditorPage(QWidget):
             # 直接关闭旧的预览窗口
             self._close_preview_window()
 
+        # 禁用主窗口
+        if self.main_window:
+            self.main_window.disable_main_window()
+        
         # 在单独线程中运行预览窗口（避免阻塞 UI）
         self.preview_thread = threading.Thread(target=self._run_preview_window, daemon=True)
         self.preview_thread.start()
 
+    def set_main_window(self, main_window):
+        """设置主窗口引用"""
+        self.main_window = main_window
+    
     def _close_preview_window(self):
         """关闭预览窗口"""
         if self.preview_window is not None:
@@ -297,6 +306,10 @@ class JsonlEditorPage(QWidget):
             self.preview_thread.join(timeout=1.0)
             if self.preview_thread.is_alive():
                 print("警告: 预览窗口线程未能及时关闭")
+        
+        # 启用主窗口
+        if self.main_window:
+            self.main_window.enable_main_window()
 
     def _run_preview_window(self):
         """在独立线程中运行预览窗口"""
@@ -310,6 +323,9 @@ class JsonlEditorPage(QWidget):
             import traceback
             traceback.print_exc()
         finally:
+            # 预览窗口关闭后，启用主窗口
+            if self.main_window:
+                self.main_window.enable_main_window()
             # 清理引用
             self.preview_window = None
             # 注意：不要在这里设置 self.preview_thread = None，因为线程可能还在运行
