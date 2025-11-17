@@ -18,6 +18,16 @@ def _load_json_without_motions_expressions(model_json_path):
     if "expressions" in data:
         del data["expressions"]
     
+    
+    # 2. 保留 groups 数组（可能包含透明度组设置）
+    if "groups" in data:
+        # 保持 groups 数组完整
+        pass
+    
+    if "init_opacities" in data:
+        # 保持 init_opacities 完整
+        pass
+    
     # 创建临时文件
     temp_dir = os.path.dirname(model_json_path)
     temp_fd, temp_path = tempfile.mkstemp(suffix=".json", dir=temp_dir, text=True)

@@ -157,7 +157,7 @@ class JsonlPreviewWindow:
                 # 设置 PARAM_IMPORT（参照 update_parameter 方法）
                 if self.param_import is not None:
                     try:
-                        # 使用 SetParameterValue 方法，传入参数 ID（字符串）和权重值
+                        # 使用 SetParameterValue 方法，传入参数 ID（字符串）和权重极
                         # 参考: model.SetParameterValue(param_id, value, 1.0)
                         if hasattr(model, "SetParameterValue"):
                             # 直接使用参数 ID 字符串
@@ -172,12 +172,20 @@ class JsonlPreviewWindow:
                                 if param_id == "PARAM_IMPORT":
                                     if hasattr(model, "SetParameter"):
                                         model.SetParameter(i, float(self.param_import))
-                                        print(f"✅ 设置 PARAM_IMPORT={self.param_import} 给模型: {model_path}")
+                                        print(f"✅ 设置 PARAM_IMPORT={self.param_import} 极模型: {model_path}")
                                     break
                     except Exception as e:
                         print(f"❌ 设置 PARAM_IMPORT 失败: {e}")
                         import traceback
                         traceback.print_exc()
+                
+                # 设置透明度参数 - 新增代码
+                try:
+                    self._initialize_opacity_parameters(model, full_path)
+                except Exception as e:
+                    print(f"❌ 设置透明度参数失败: {e}")
+                    import traceback
+                    traceback.print_exc()
                 
                 # 模型已添加到 model_configs，这里只需要分类
                 if is_v3:
@@ -194,6 +202,49 @@ class JsonlPreviewWindow:
                 continue
         
         return len(self.models_v2) + len(self.models_v3) > 0
+    
+    def _initialize_opacity_parameters(self, model, model_path):
+        """初始化透明度参数"""
+        # 读取原始 JSON 文件中的 init_opacities
+        try:
+            with open(model_path, "r", encoding="utf-8") as f:
+                original_data = json.load(f)
+            
+            if "init_opacities" in original_data:
+                init_opacities = original_data["init_opacities"]
+                print(f"📋 找到 {len(init_opacities)} 个透明度设置")
+                
+                for opacity_setting in init_opacities:
+                    part_id = opacity_setting.get("id", "")
+                    opacity_value = float(opacity_setting.get("value", 1.0))
+                    
+                    # 尝试设置部件透明度
+                    try:
+                        if hasattr(model, "SetPartOpacity"):
+                            # 查找部件索引
+                            part_ids = model.GetPartIds()
+                            if part_id in part_ids:
+                                part_index = part_ids.index(part_id)
+                                model.SetPartOpacity(part_index, opacity_value)
+                                print(f"✅ 设置部件 {part_id} 透明度 = {opacity_value}")
+                            else:
+                                print(f"⚠️  部件 {part_id} 不存在")
+                        elif hasattr(model, "setPartsOpacity"):
+                            # 旧版本 API
+                            part_ids = model.GetPartIds()
+                            if part_id in part_ids:
+                                part_index = part_ids.index(part_id)
+                                model.setPartsOpacity(part_index, opacity_value)
+                                print(f"✅ 设置部件 {part_id} 透明度 = {opacity_value}")
+                            else:
+                                print(f"⚠️  部件 {part_id} 不存在")
+                    except Exception as e:
+                        print(f"❌ 设置部件 {part_id} 透明度失败: {e}")
+                        
+        except Exception as e:
+            print(f"❌ 读取原始 JSON 文件失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     def run(self):
         """运行预览窗口"""
