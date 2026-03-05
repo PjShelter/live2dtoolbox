@@ -559,14 +559,17 @@ class OpacityPresetPage(QWidget):
     def apply_preset(self):
         # 逐行处理
         traverse_all = self.all_subdirs_checkbox.isChecked()
+        chosen_subdir = None
         if not traverse_all:
-            if self.source_subdir_combo.count() == 0:
-                QMessageBox.warning(self, "警告", "未找到可用的来源子目录，请勾选“遍历全部子目录”或选择有子目录的根目录")
-                return
-            chosen_subdir = self.source_subdir_combo.currentText().strip()
-            if not chosen_subdir:
-                QMessageBox.warning(self, "警告", "请先选择来源子目录")
-                return
+            if self.source_subdir_combo.count() > 0:
+                chosen_subdir_text = self.source_subdir_combo.currentText().strip()
+                # 只有当明确选择了子目录时才设置 chosen_subdir
+                if chosen_subdir_text:
+                    chosen_subdir = chosen_subdir_text
+        
+        # 判断是否需要集中处理 motions/expressions
+        # 只有在明确选择了"遍历所有子目录"或"来源子目录"时才处理文件
+        should_organize_files = traverse_all or (chosen_subdir is not None)
 
         use_copy_only = self.copy_mode_checkbox.isChecked()
 
@@ -605,8 +608,12 @@ class OpacityPresetPage(QWidget):
 
                 with open(json_path, "r", encoding="utf-8") as f:
                     model_data = json.load(f)
-                model_data.pop("motions", None)
-                model_data.pop("expressions", None)
+                
+                # 只有在需要集中处理文件时才删除 motions 和 expressions
+                if should_organize_files:
+                    model_data.pop("motions", None)
+                    model_data.pop("expressions", None)
+                
                 model_data["init_opacities"] = init_opacities
                 with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(model_data, f, ensure_ascii=False, indent=2)
@@ -614,43 +621,20 @@ class OpacityPresetPage(QWidget):
             except Exception as e:
                 print(f"❌ 处理失败: {json_path} 错误: {e}")
 
-        # —— 集中动作/表情
-        try:
-            if traverse_all:
-                for dirpath, _, filenames in os.walk(self.root_dir):
-                    for file in filenames:
-                        low = file.lower()
-                        if not (low.endswith(".mtn") or low.endswith(".exp.json")):
-                            continue
-                        src = os.path.join(dirpath, file)
-                        rel = os.path.relpath(dirpath, self.root_dir)
-                        top = rel.split(os.sep)[0] if rel != "." else "_root"
-                        export_dir = os.path.join(self.root_dir, "expnmtn", top)
-                        _ensure_dir(export_dir)
-                        try:
-                            if use_copy_only:
-                                final_dst = _dedup_target_path(os.path.join(export_dir, file))
-                                shutil.copy2(src, final_dst)
-                                _fsync_file(final_dst); _fsync_dir(export_dir)
-                            else:
-                                _ = safe_move(src, os.path.join(export_dir, file))
-                            exported += 1
-                        except Exception as e:
-                            print(f"❌ 集中失败：{src} -> {export_dir}，错误: {e}")
-                            skipped += 1
-            else:
-                source_base = os.path.join(self.root_dir, chosen_subdir)
-                if not os.path.isdir(source_base):
-                    print(f"⚠️ 来源子目录不存在：{os.path.normpath(source_base)}")
-                else:
-                    export_dir = os.path.join(self.root_dir, "expnmtn", chosen_subdir)
-                    _ensure_dir(export_dir)
-                    for dirpath, _, filenames in os.walk(source_base):
+        # —— 集中动作/表情（只有在选择了遍历或来源子目录时才执行）
+        if should_organize_files:
+            try:
+                if traverse_all:
+                    for dirpath, _, filenames in os.walk(self.root_dir):
                         for file in filenames:
                             low = file.lower()
                             if not (low.endswith(".mtn") or low.endswith(".exp.json")):
                                 continue
                             src = os.path.join(dirpath, file)
+                            rel = os.path.relpath(dirpath, self.root_dir)
+                            top = rel.split(os.sep)[0] if rel != "." else "_root"
+                            export_dir = os.path.join(self.root_dir, "expnmtn", top)
+                            _ensure_dir(export_dir)
                             try:
                                 if use_copy_only:
                                     final_dst = _dedup_target_path(os.path.join(export_dir, file))
@@ -662,16 +646,43 @@ class OpacityPresetPage(QWidget):
                             except Exception as e:
                                 print(f"❌ 集中失败：{src} -> {export_dir}，错误: {e}")
                                 skipped += 1
-        except Exception as e:
-            print(f"❌ 遍历错误：{e}")
+                else:
+                    source_base = os.path.join(self.root_dir, chosen_subdir)
+                    if not os.path.isdir(source_base):
+                        print(f"⚠️ 来源子目录不存在：{os.path.normpath(source_base)}")
+                    else:
+                        export_dir = os.path.join(self.root_dir, "expnmtn", chosen_subdir)
+                        _ensure_dir(export_dir)
+                        for dirpath, _, filenames in os.walk(source_base):
+                            for file in filenames:
+                                low = file.lower()
+                                if not (low.endswith(".mtn") or low.endswith(".exp.json")):
+                                    continue
+                                src = os.path.join(dirpath, file)
+                                try:
+                                    if use_copy_only:
+                                        final_dst = _dedup_target_path(os.path.join(export_dir, file))
+                                        shutil.copy2(src, final_dst)
+                                        _fsync_file(final_dst); _fsync_dir(export_dir)
+                                    else:
+                                        _ = safe_move(src, os.path.join(export_dir, file))
+                                    exported += 1
+                                except Exception as e:
+                                    print(f"❌ 集中失败：{src} -> {export_dir}，错误: {e}")
+                                    skipped += 1
+            except Exception as e:
+                print(f"❌ 遍历错误：{e}")
 
-        QMessageBox.information(
-            self,
-            "完成",
-            f"已更新 init_opacities：{updated} 个\n"
-            f"{'复制' if use_copy_only else '移动'}了 {exported} 个动作/表情到 expnmtn\\(按首层目录分组)\n"
-            f"跳过/失败：{skipped}"
-        )
+        # 构建完成消息
+        message = f"已更新 init_opacities：{updated} 个"
+        if should_organize_files:
+            message += f"\n{'复制' if use_copy_only else '移动'}了 {exported} 个动作/表情到 expnmtn\\(按首层目录分组)"
+            if skipped > 0:
+                message += f"\n跳过/失败：{skipped}"
+        else:
+            message += "\n（未处理 motions/expressions 文件和字段）"
+        
+        QMessageBox.information(self, "完成", message)
 
     # ========= 新增：从单一源 JSON 复制到勾选目标 =========
     def _browse_src_json(self):

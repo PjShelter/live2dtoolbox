@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
 
 from utils.common import save_config, load_config, get_resource_path
 
-from pages.L2dwConfPage import L2dwConfPage
+from pages.WmdlConverterPage import WmdlConverterPage
 from pages.OpacityPresetPage import OpacityPresetPage
 from pages.batch_tool_page import BatchToolPage
 from pages.import_table_page import ImportTablePage
@@ -121,7 +121,7 @@ class ToolBox(QWidget):
         self.page_jsonl_editor=JsonlEditorPage()
         self.page_import = ImportTablePage()
         self.page_part_editor = PartEditorPage()
-        self.page_l2dw = L2dwConfPage()
+        self.page_wmdl = WmdlConverterPage()
         self.page_opacity_preset = OpacityPresetPage()
         
         # 将主窗口引用传递给需要预览功能的页面
@@ -136,7 +136,7 @@ class ToolBox(QWidget):
         self.stack.addWidget(self.page_jsonl)
         self.stack.addWidget(self.page_jsonl_editor)
         self.stack.addWidget(self.page_import)
-        self.stack.addWidget(self.page_l2dw)
+        self.stack.addWidget(self.page_wmdl)
         self.stack.addWidget(self.page_opacity_preset)
 
         self.theme_button = QPushButton("切换主题：银灰")
@@ -153,7 +153,7 @@ class ToolBox(QWidget):
             "📦 生成 jsonl",
             "✏️ 编辑 JSONL",
             "📊 IMPORT 参数表",
-            "🔗 联动 L2DW",
+            "🔄 WMDL 转换",
             "🪞 一键生成拼好模"
         ])
         self.menu.itemClicked.connect(self.on_menu_item_clicked)

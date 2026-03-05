@@ -332,9 +332,7 @@ class JsonlPreviewWindow:
             py = y * self.scale_y  # 基于 2560x1440 的 y 转换为预览窗口像素
             
             # 步骤2: 转换为归一化坐标
-            # SetOffset 的参数可能是基于 baseWidth/baseHeight 的归一化坐标
-            # 即：normalized = (JSONL坐标) / (baseWidth或baseHeight / 2)
-            # 这样可以直接使用 JSONL 中的 x, y 值进行归一化
+            # SetOffset 的参数是基于 baseWidth/baseHeight 的归一化坐标
             normalized_x = -x / (self.base_width / 2.0) if self.base_width > 0 else 0.0
             normalized_y = -y / (self.base_height / 2.0) if self.base_height > 0 else 0.0
             

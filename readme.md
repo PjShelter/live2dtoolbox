@@ -1,245 +1,207 @@
-# 🎉 [gen_model](https://github.com/KonshinHaoshin/gen_model)
+# 🎉 Live2D 工具箱
 
-> 如果你觉得这个工具对你有帮助，欢迎关注 B 站 UP 主 **东山燃灯寺**！  
-> 💖 你的支持是我持续改进的动力！  
+> 如果你觉得这个工具对你有帮助，欢迎关注 B 站 UP 主 **东山燃灯寺**！
+> 💖 你的支持是我持续改进的动力！
 > 🔗 B 站链接：[https://space.bilibili.com/296330875](https://space.bilibili.com/296330875?spm_id_from=333.1007.0.0)
 
-✨ 本项目是一个专为 **Live2D Cubism 2 SDK 模型** 开发的资源管理与自动化工具，帮助用户轻松创建、更新并批量整理 `model.json` 配置文件，极大地减少手动编辑负担。
+一个专为 **Live2D Cubism 2 模型** 和 **WebGAL 视觉小说引擎** 开发的图形化工具箱。
 
-> ⚠️ 本工具**仅支持 Cubism 2 时代的模型结构**。
+> ⚠️ 本工具**仅支持 Cubism 2 时代的模型结构**（.moc 格式）
 
 ---
 
 ## 🔥 主要功能
 
-### 1. ✅ 生成 `model.json`
+### 🎨 色彩匹配工具
+- 图像色调迁移：将源图像的色调匹配到参考图像的风格
+- 自动生成 WebGAL `setTransform` 色调指令
+- 可视化对比图表，直观查看 RGB 参数变化
+- 支持从 `png/` 文件夹快速选择参考图
 
-- 自动扫描指定的 Live2D 模型目录，生成标准格式的 `model.json`。
-- 自动分类并导入：
-  - `.moc` 模型文件
-  - `.physics.json` 物理配置
-  - `.png` 贴图纹理
-  - `.mtn` 动作
-  - `.exp.json` 表情文件
+### 🧰 Live2D 模型管理
+- **扫描生成**：自动扫描目录生成标准 `model.json` 配置
+- **去重清理**：检测并删除重复项和无效路径，自动备份
+- **批量添加**：批量导入动作(.mtn)和表情(.exp.json)文件，支持自定义前缀
+- **MTN 参数编辑**：批量修改 `.mtn` 文件中的 `PARAM_IMPORT` 等参数
+- **支持 JSONL**：可对 JSONL 文件中的所有模型批量操作
 
-### 2. ➕ 添加单个动作或表情
+### 📄 JSONL 生成与编辑
+- **生成器**：为"拼好模"生成 JSONL 配置文件
+- **可视化编辑**：图形界面编辑 JSONL 中的模型列表
+- **部件管理**：调整部件顺序、添加/删除子模型
+- **统一配置**：批量设置 import 参数、动作和表情列表
 
-- 向已有的 `model.json` 添加单个 `.mtn` 或 `.exp.json` 文件。
-- 自动路径相对化，方便跨平台使用。
-
-### 3. 📦 批量添加动作或表情
-
-- 支持输入一个文件夹或多个文件路径（用 `;` 分隔）进行批量导入。
-- 可自定义名称前缀，便于组织管理。
-
-### 4. 🧹 去重 + 删除无效路径（全新功能！）
-
-- 自动检测并去重 `model.json` 中的重复动作/表情。
-- 自动检测文件是否实际存在，**集中列出所有缺失项**，并询问是否一键删除对应记录。
-- 自动备份原始 `model.json` 为 `.bak` 文件。
-
-### 5. 🛠 批量修改 `.mtn` 文件中的 `PARAM_IMPORT` 参数
-
-- 快速替换指定目录下所有 `.mtn` 文件中的 `PARAM_IMPORT` 值，用于调整动作权重或合成行为。
+### 🔧 其他工具
+- **Import 参数表**：查看 Live2D 表情参数对照表
+- **透明度预设**：快速配置模型透明度
+- **L2DW 配置**：Live2D Widget 配置文件生成
+- **自动更新检查**：一键检查 GitHub 最新版本
 
 ---
 
-## 🚀 使用方法
+## 🚀 快速开始
 
-1. **运行 `live2d_tool.py`**：
+### 方式一：直接运行（推荐）
 
+下载 [Release](https://github.com/KonshinHaoshin/gen_model/releases) 中的 `Live2DToolbox.exe`，双击运行即可。
+
+### 方式二：从源码运行
+
+1. **安装依赖**：
    ```bash
-   python live2d_tool.py
+   pip install PyQt5 pillow numpy matplotlib requests python-dotenv
    ```
 
-2. **根据菜单提示选择功能**：
-
-   ```
-   1. 生成新的 model.json
-   2. 添加单个动作/表情到 model.json
-   3. 批量添加动作/表情到 model.json
-   4. 去重 model.json 中重复的动作/表情，并删除不存在的路径
-   5. 批量更改 mtn 文件中的 PARAM_IMPORT 参数
-   q. 退出程序
+2. **运行主程序**：
+   ```bash
+   python main_ui.py
    ```
 
-3. **按照提示输入文件路径、参数等信息**，等待程序执行完成。
+3. **使用图形界面**：
+   - 顶部标签页切换不同功能模块
+   - 所有操作都有图形界面引导
+   - 配置会自动保存到 `config.json`
 
 ---
 
-## 📂 推荐文件结构（示例）
+## 📖 功能详解
 
-```
-your_model_folder/
-├── model.moc
-├── model.json
-├── physics.json
-├── texture_00.png
-├── idle.mtn
-├── happy.exp.json
-└── ...
-```
+
+### 🧰 Live2D 模型管理
+
+**扫描生成 model.json**：
+- 自动识别 `.moc`、`.physics.json`、`.png`、`.mtn`、`.exp.json` 文件
+- 生成标准格式的 `model.json` 配置文件
+
+**去重清理**：
+- 检测重复的动作/表情条目
+- 检查文件路径是否存在
+- 自动备份为 `.bak` 文件
+- 支持单个 `model.json` 或整个 JSONL 文件
+
+**批量添加动作/表情**：
+- 选择文件夹，勾选需要添加的文件
+- 支持自定义名称前缀
+- 可对 JSONL 中的所有模型批量操作
+
+**MTN 参数编辑**：
+- 批量修改指定目录下所有 `.mtn` 文件
+- 常用于调整 `PARAM_IMPORT` 参数值
 
 ---
 
-## 💡 小贴士
+### 📄 JSONL 生成器
 
-- 使用前请备份模型目录，避免误操作。
-- 工具默认会对 `model.json` 进行 `.bak` 备份，放心修改。
-- 建议在模型制作后期使用本工具进行资源整理与批量修复。
+**什么是"拼好模"**：将多个 Live2D 模型部件（头发、身体、脸等）组合成一个完整角色。
 
-## 🎨 新功能：`color_transfer.py` — 图像色调匹配 & WebGAL 色调指令生成
+**使用步骤**：
+1. 选择包含多个子目录的根目录
+2. 点击"列出子目录"查看所有子文件夹
+3. 选择需要包含的子目录（可调整顺序）
+4. 设置 ID 前缀
+5. 可选：勾选"统一 import"并设置数值
+6. 点击"生成 JSONL"
 
-> 快速将一张图像的整体色调迁移为另一张图像的风格，并自动生成 WebGAL 使用的 `setTransform` 指令！
-
-------
-
-### 🔧 功能介绍
-
-- 对比源图与参考图的 RGB 色彩分布，自动生成“匹配风格”的新图像。
-- 自动构造 WebGAL 指令：根据参考图相对于源图的亮度差异，生成精确的 `colorRed` / `colorGreen` / `colorBlue` 参数。
-- 支持交互式选择图像，输出图像自动保存并可视化预览。
-
-------
-
-### 📦 使用方式
-
-1. 将源图像（需要调整风格）准备好；
-
-2. 将参考图像放入 `png/` 文件夹（支持多个 .png）；
-
-3. 运行安装依赖
-
-   ```bash
-   pip install pillow numpy matplotlib
-   ```
-
-4. 运行
-
-   ```bash
-   python color_transfer.py
-   ```
-
-5. 按照命令行提示操作：
-
-6. 程序将输出：
-
-   - 一张新的色调匹配图：保存在 `output/` 文件夹中；
-   - 一条 WebGAL 可用的 `setTransform` 指令，直接复制使用。
-
-### 📌 示例输出
-
-```bash
-✅ Color matching done. Saved to: output/matched_background_cool.png
-
-🎬 Suggested WebGAL Transform Command:
-setTransform:{"colorRed": 130, "colorGreen": 210, "colorBlue": 255} -target=bg-main -duration=0 -next;
-```
-
-### 🔄 数学原理：**标准化 + 分布转换**
-
-这一步是核心：
-
-1. 将源图的每个像素先标准化为 **零均值单位方差**
-
-   ```math
-   z=x−μsrcσsrcz = \frac{x - \mu_{\text{src}}}{\sigma_{\text{src}}}z=σsrcx−μsrc
-   ```
-
-   
-
-   
-
-2. 再重构为目标图的分布：
-
-   ```math
-   xnew=z⋅σtgt+μtgtx_{\text{new}} = z \cdot \sigma_{\text{tgt}} + \mu_{\text{tgt}}xnew=z⋅σtgt+μtgt
-   ```
-
-   
-
-这相当于将源图的色彩分布“平移+拉伸”为参考图的色彩分布。
-
-即对每个 RGB 通道：
-
-- 将源图像的亮度“拉平”为标准分布；
-- 然后再“拉回”成目标图的风格。
-
- 🧠 WebGAL 色调分析：
-
-每个通道（R/G/B）默认值为 `255`，程序将根据参考图的相对亮度变化与源图进行对比，输出：
-
-```python
-colorX = 255 - (source_mean - target_mean)
-```
-
-并保证结果范围在 `[0, 255]`，自动向 WebGAL 样式靠拢。
-
-### ✅ 示例
-
-![1](readme/1.png)
-
-![2](readme/2.png)
-
-![3](readme/3.png)
-
-> ```webgal
-> changeBg:E（live house）/E6.png;
-> setTransform:{"colorRed": 139, "colorGreen": 174, "colorBlue": 204} -target=bg-main -duration=0 -next;
-> ```
-
-![4](readme/4.png)
-
-
-
-## 🎭 拼好模 JSONL 文件格式说明
-
-本文件为 `.jsonl` 格式（每行一个 JSON 对象），用于描述多个 **Live2D 模型子部件** 及其资源路径，并统一组合为一个虚拟角色立绘，同时提供动作（motions）与表情（expressions）列表，供引擎使用。
-
-### 📦 文件结构示例
-
+**生成的文件格式**：
 ```json
 {"index": 0, "id": "myid0", "path": "1.头发/model.json", "folder": "1.头发"}
 {"index": 1, "id": "myid1", "path": "2.身体/model.json", "folder": "2.身体"}
-{"index": 2, "id": "myid2", "path": "3.脸/model.json", "folder": "3.脸"}
-{"index": 3, "id": "myid3", "path": "4.其他/model.json", "folder": "4.其他"}
-{"motions": ["idle01", "smile01"], "expressions": ["default", "angry01"]}
+{"motions": ["idle01"], "expressions": ["default"]}
 ```
 
-### 🧩 字段说明
+**JSONL 编辑器**：
+- 可视化编辑已有的 JSONL 文件
+- 添加/删除部件
+- 调整部件顺序
+- 编辑动作和表情列表
+
+---
+
+## 📂 推荐目录结构
+
+```
+your_model_folder/
+├── model.json          # 模型配置文件
+├── model.moc           # 模型文件
+├── physics.json        # 物理配置（可选）
+├── texture_00.png      # 贴图
+├── idle.mtn            # 动作文件
+├── happy.exp.json      # 表情文件
+└── ...
+```
+
+**拼好模目录结构**：
+```
+character_name/
+├── 1.头发/
+│   ├── model.json
+│   ├── model.moc
+│   └── texture_00.png
+├── 2.身体/
+│   ├── model.json
+│   └── ...
+├── 3.脸/
+│   └── ...
+└── character_name.jsonl  # 生成的配置文件
+```
+
+---
+
+## 🎭 JSONL 文件格式说明
+
+### 字段说明
 
 | 字段名        | 类型   | 描述                                                         |
 | ------------- | ------ | ------------------------------------------------------------ |
 | `index`       | int    | 模型部件在组合中的顺序（用于排序）                           |
-| `id`          | string | 每个部件的唯一 ID（通常由 `prefix + index` 构成）目前无实际含义 |
+| `id`          | string | 每个部件的唯一 ID（通常由 `prefix + index` 构成）           |
 | `path`        | string | 指向每个部件的 `model.json` 路径（相对路径）                 |
-| `folder`      | string | 部件所在子目录名称（可用于展示或资源管理）                   |
-| `motions`     | array  | ✅**仅出现在最后一行**，表示所有部件都支持的 **共通动作** 名称列表 |
-| `expressions` | array  | ✅**仅出现在最后一行**，表示所有部件中至少有一个支持的表情名称列表 |
+| `folder`      | string | 部件所在子目录名称                                           |
+| `motions`     | array  | **仅出现在最后一行**，表示所有部件支持的共通动作名称列表     |
+| `expressions` | array  | **仅出现在最后一行**，表示所有部件中至少有一个支持的表情名称列表 |
+| `import`      | int    | **可选字段**，表示默认的 import 参数值                       |
 
-### 🧠 在Eastmount系列引擎中运行逻辑概述
+### 引擎支持
 
-1. **解析 `.jsonl` 文件**
-   - 读取每一行 JSON；
-   - 获取每个部件的 `path` 字段，拼接为完整路径；
-   - 过滤掉非模型路径（如 summary，即最后一行存放动作表情）。
-2. **加载模型并添加至容器**
-   - 通过 `this.live2DModel.from(modelPath)` 异步加载每个 `model.json`；
-   - 调整缩放、锚点、位置等属性；
-   - 添加至统一的 `WebGALPixiContainer` 中，实现跟其他立绘一样的打光、移动效果。
-3. **统一设置动作与表情**
-   - 如果 `webgalStore` 中有之前设置的 motion/expression 则自动应用；
-   - 所有模型播放同一个动作；
-   - 同步表情切换；
-   - 禁用自动眨眼，避免不同部件重复闪烁。
-4. **加入舞台与状态注册**
-   - 将组合容器加入 `figureObjects` 列表；
-   - 注册 UUID 与 source 路径；
-   - 延迟显示容器（0.1秒 alpha 渐变）。
+目前仅在 **Eastmount 系列引擎**（基于 WebGAL 的修改版）中支持。
 
-### 🧠 使用场景
+---
 
-目前支持，**且**仅在·`Eastmount`系列引擎中支持
+## 💡 使用技巧
+
+- 工具会自动保存上次使用的路径到 `config.json`
+- 所有修改 `model.json` 的操作都会自动备份为 `.bak` 文件
+- 色彩匹配的参考图放在 `png/` 文件夹中可快速选择
+- JSONL 生成时，子目录名称建议使用数字前缀（如 `1.头发`）便于排序
+
+---
+
+## 🛠 开发相关
+
+### 打包为 exe
+
+```bash
+pyinstaller -w -F main_ui.py --icon=icon.ico --name Live2DToolbox --add-data "icon.png;."
+```
+
+### 项目结构
+
+```
+gen_model/
+├── main_ui.py              # 主界面
+├── pages/                  # 各功能页面
+│   ├── batch_tool_page.py
+│   ├── jsonl_generator_page.py
+│   ├── jsonl_editor_page.py
+│   └── ...
+├── sections/               # 核心功能模块
+│   ├── live2d_tool.py
+│   ├── color_transfer.py
+│   └── gen_jsonl.py
+└── utils/                  # 工具函数
+```
+
+---
 
 ## 📜 License
 
@@ -247,13 +209,8 @@ colorX = 255 - (source_mean - target_mean)
 
 ---
 
-如需自动化脚本、图形界面或与 Live2D Viewer 配套使用的功能，欢迎发起 Issue 或 PR！  
-有更多想法也欢迎联系我，我会持续维护和优化。
+## 🤝 贡献与反馈
 
+欢迎发起 Issue 或 PR！有更多想法也欢迎联系我，我会持续维护和优化。
 
-
-
-```bash
- pyinstaller -w -F main_ui.py --icon=icon.ico --name Live2DToolbox --add-data "style.qss;." --add-data "icon.png;."                                  
-                                                                                    
-```
+**GitHub**: [https://github.com/KonshinHaoshin/gen_model](https://github.com/KonshinHaoshin/gen_model)

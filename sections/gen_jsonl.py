@@ -191,3 +191,131 @@ def conf_to_jsonl_with_summary(conf_path, figure_root_dir):
         f.write(json.dumps(summary, ensure_ascii=False) + "\n")
 
     return jsonl_output_path
+
+
+def jsonl_to_wmdl(jsonl_path):
+    """
+    将 JSONL 转换为 WMDL 格式
+    """
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+
+    if not lines:
+        raise ValueError("JSONL 文件为空")
+
+    # 解析普通行和 summary 行
+    data_entries = []
+    summary = {}
+    for line in lines:
+        obj = json.loads(line)
+        if "motions" in obj or "expressions" in obj:
+            summary = obj
+        else:
+            data_entries.append(obj)
+
+    if not data_entries:
+        raise ValueError("JSONL 文件中没有有效的模型数据")
+
+    main_model = data_entries[0]
+    name = os.path.splitext(os.path.basename(jsonl_path))[0]
+
+    # 构建 wmdl 结构
+    wmdl = {
+        "name": name,
+        "modelRelativePath": main_model.get("path", ""),
+        "figureTemplate": f"changeFigure:%conf_path% -id={name}_0 -zIndex=0 %me_0%;",
+        "transformTemplate": f"setTransform:%me_0% -target={name}_0 -duration=750 -writeDefault;",
+        "subModels": [],
+        "x": main_model.get("x", 0),
+        "y": main_model.get("y", 0),
+        "scale": main_model.get("scale", main_model.get("xscale", 1)),
+        "rotation": main_model.get("rotation", 0),
+        "reverseX": main_model.get("reverseX", False),
+        "live2dBounds": [0, 0, 0, 0]
+    }
+
+    # 添加子模型
+    for entry in data_entries[1:]:
+        sub_model = {
+            "modelRelativePath": entry.get("path", ""),
+            "offsetX": entry.get("x", 0) - wmdl["x"],
+            "offsetY": entry.get("y", 0) - wmdl["y"]
+        }
+        wmdl["subModels"].append(sub_model)
+
+    output_path = os.path.join(os.path.dirname(jsonl_path), f"{name}.wmdl")
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(wmdl, f, ensure_ascii=False, indent="\t")
+
+    return output_path
+
+
+def wmdl_to_jsonl(wmdl_path, figure_root_dir=None):
+    """
+    将 WMDL 转换为 JSONL 格式
+    """
+    with open(wmdl_path, "r", encoding="utf-8") as f:
+        wmdl = json.load(f)
+
+    name = wmdl.get("name", "model")
+    jsonl_lines = []
+
+    # 主模型
+    main_entry = {
+        "index": 0,
+        "id": "dao0",
+        "path": wmdl.get("modelRelativePath", ""),
+        "folder": os.path.dirname(wmdl.get("modelRelativePath", "")).replace("\\", "/"),
+        "x": wmdl.get("x", 0),
+        "y": wmdl.get("y", 0),
+        "scale": wmdl.get("scale", 1)
+    }
+    jsonl_lines.append(main_entry)
+
+    # 子模型
+    for idx, sub in enumerate(wmdl.get("subModels", []), 1):
+        sub_entry = {
+            "index": idx,
+            "id": f"dao{idx}",
+            "path": sub.get("modelRelativePath", ""),
+            "folder": os.path.dirname(sub.get("modelRelativePath", "")).replace("\\", "/"),
+            "x": wmdl.get("x", 0) + sub.get("offsetX", 0),
+            "y": wmdl.get("y", 0) + sub.get("offsetY", 0)
+        }
+        jsonl_lines.append(sub_entry)
+
+    # 扫描动画和表情 (如果有 figure_root_dir)
+    motions_set = set()
+    expressions_set = set()
+    if figure_root_dir:
+        all_paths = [wmdl.get("modelRelativePath", "")] + [sub.get("modelRelativePath", "") for sub in wmdl.get("subModels", [])]
+        for rel_path in all_paths:
+            abs_path = os.path.join(figure_root_dir, rel_path)
+            if os.path.exists(abs_path):
+                try:
+                    with open(abs_path, "r", encoding="utf-8") as mf:
+                        model_data = json.load(mf)
+                        motions = model_data.get("motions", {})
+                        expressions = model_data.get("expressions", [])
+                        for k in motions.keys():
+                            motions_set.add(k)
+                        for exp in expressions:
+                            if isinstance(exp, dict) and "name" in exp:
+                                expressions_set.add(exp["name"])
+                            elif isinstance(exp, str):
+                                expressions_set.add(exp)
+                except Exception:
+                    pass
+
+    summary = {
+        "motions": sorted(list(motions_set)),
+        "expressions": sorted(list(expressions_set))
+    }
+
+    output_path = os.path.join(os.path.dirname(wmdl_path), f"{name}.jsonl")
+    with open(output_path, "w", encoding="utf-8") as f:
+        for entry in jsonl_lines:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.write(json.dumps(summary, ensure_ascii=False) + "\n")
+
+    return output_path

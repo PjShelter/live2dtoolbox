@@ -23,3 +23,5 @@ venv/
 env/
 ENV/
 myenv/
+*.wmdl
+四宫宁月/
