@@ -37,3 +37,21 @@ lut/
 
 四宫宁月/
 output_conf/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual env
+venv/
+myenv/
+
+# Logs
+*.log
+
+# Env
+.env
+
+# Output
+output/
