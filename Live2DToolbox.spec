@@ -5,15 +5,7 @@ a = Analysis(
     ['main_ui.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('resource/style.qss', 'resource'),
-        ('resource/style_pinkblue.qss', 'resource'),
-        ('resource/parts.json', 'resource'),
-        ('name_import.json', '.'),
-        ('deformer_import.json', '.'),
-        ('exps.json', '.'),
-        ('icon.png', '.'),
-    ],
+    datas=[('icon.png', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -43,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',  # EXE 图标文件
+    icon=['icon.ico'],
 )
