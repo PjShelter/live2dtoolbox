@@ -4,14 +4,14 @@ import sys
 import os
 import json
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QApplication, QWidget, QPushButton, QLabel, QFileDialog,
     QVBoxLayout, QHBoxLayout, QMessageBox, QComboBox, QTextEdit,
     QGroupBox, QLineEdit, QFormLayout, QListWidget, QAbstractItemView, QDialogButtonBox, QListWidgetItem, QDialog,
     QCheckBox
 )
-from PyQt5.QtGui import QPixmap, QIcon
+from PySide6.QtGui import QPixmap, QIcon
 from PIL import Image
 
 from filedialog.FileSelectionDialog import FileSelectionDialog
@@ -744,4 +744,4 @@ if __name__ == "__main__":
             app.setStyleSheet(f.read())
     window = ToolBox()
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

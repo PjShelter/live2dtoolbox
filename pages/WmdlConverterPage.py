@@ -1,5 +1,5 @@
 import os
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QMessageBox
 
 
 class WmdlConverterPage(QWidget):

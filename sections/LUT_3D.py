@@ -2,7 +2,7 @@
 import numpy as np
 
 from PIL import Image
-from PyQt5.QtGui import QImage, QPixmap
+from PySide6.QtGui import QImage, QPixmap
 
 def parse_cube_lut(cube_path: str) -> np.ndarray:
     """

@@ -6,13 +6,13 @@ import live2d.v2 as live2d
 import errno
 import threading
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog,
     QMessageBox, QListWidget, QListWidgetItem, QHBoxLayout, QTableWidget,
     QHeaderView, QTableWidgetItem, QCheckBox, QLineEdit, QComboBox,
     QGroupBox, QFormLayout, QRadioButton, QDialog
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from sections.gen_jsonl import is_valid_live2d_json
 from sections.py_live2d_editor import get_all_parts

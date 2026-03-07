@@ -3,11 +3,11 @@
 """
 import os
 import json
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
     QTableWidgetItem, QLabel, QMessageBox, QHeaderView, QDialogButtonBox
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from sections.py_live2d_editor import get_all_parts
 

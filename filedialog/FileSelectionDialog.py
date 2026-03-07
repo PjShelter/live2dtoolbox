@@ -1,7 +1,7 @@
 import os
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLabel, QListWidgetItem, QHBoxLayout, QPushButton, QVBoxLayout, QListWidget, QDialog, \
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QListWidgetItem, QHBoxLayout, QPushButton, QVBoxLayout, QListWidget, QDialog, \
     QDialogButtonBox
 
 

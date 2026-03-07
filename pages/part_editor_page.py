@@ -4,11 +4,11 @@ import pygame
 import live2d.v2 as live2d
 import threading
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QTableWidget, QTableWidgetItem, QLabel, QMessageBox, QHBoxLayout
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from sections.py_live2d_editor import list_model_info
 from pages.single_model_preview_window import SingleModelPreviewWindow

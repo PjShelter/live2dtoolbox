@@ -1,7 +1,7 @@
 import os
 import webbrowser
 import requests
-from PyQt5.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox
 from dotenv import load_dotenv
 
 load_dotenv()

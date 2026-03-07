@@ -1,10 +1,10 @@
 import json
 import os
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QFileDialog,
     QLineEdit, QPushButton, QHBoxLayout, QLabel
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 from utils.common import get_resource_path
 
 

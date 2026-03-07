@@ -1,10 +1,10 @@
 import json
 import os
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QFileDialog, QGroupBox, QMessageBox, QDialog
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from filedialog.FileSelectionDialog import FileSelectionDialog
 from sections.live2d_tool import (

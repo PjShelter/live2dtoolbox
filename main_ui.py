@@ -2,9 +2,9 @@ import sys
 import os
 import json
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QCloseEvent
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QCloseEvent
+from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QListWidget, QDialogButtonBox, QListWidgetItem, QDialog,
     QStackedLayout, QComboBox, QPushButton
 )
@@ -308,4 +308,4 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = ToolBox()
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

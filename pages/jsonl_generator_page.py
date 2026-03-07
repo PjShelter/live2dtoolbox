@@ -2,12 +2,12 @@
 import os
 import json
 import tempfile
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QLabel,
     QListWidget, QFileDialog, QMessageBox, QCheckBox, QTextEdit, QDialog,
     QAbstractItemView, QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from sections.gen_jsonl import collect_jsons_to_jsonl, is_valid_live2d_json
 from sections.py_live2d_editor import get_all_param_info_list
@@ -325,7 +325,7 @@ class JsonlPreviewDialog(QDialog):
 
     def compute_xy_for_all(self):
         import os, json
-        from PyQt5.QtWidgets import QMessageBox, QTableWidgetItem
+        from PySide6.QtWidgets import QMessageBox, QTableWidgetItem
 
         LIVE2D_Y_MAX = 2000.0  # 大多数立绘画幅 2000x2000
         WEBGAL_CANVAS_H = 1440  # WebGAL 高度
@@ -528,7 +528,7 @@ class JsonlPreviewDialog(QDialog):
             return
 
         # 询问保存路径
-        from PyQt5.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog
         # 读取上次保存的目录
         config = load_config()
         last_save_dir = config.get("jsonl_last_save_dir", "")

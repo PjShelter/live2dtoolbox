@@ -49,7 +49,7 @@
 
 1. **安装依赖**：
    ```bash
-   pip install PyQt5 pillow numpy matplotlib requests python-dotenv
+   pip install PySide6 pillow numpy matplotlib requests python-dotenv
    ```
 
 2. **运行主程序**：
@@ -178,10 +178,20 @@ character_name/
 
 ## 🛠 开发相关
 
+### PySide6
+
+**已完成PySide6迁移** 
+
+#### 优势
+- LGPL许可(商用友好)
+- Qt6渲染性能提升
+- 体积减小10%
+- 长期维护
+
 ### 打包为 exe
 
 ```bash
-pyinstaller -w -F main_ui.py --icon=icon.ico --name Live2DToolbox --add-data "icon.png;."
+pyinstaller -w -F main_ui.py --icon=icon.ico --name Live2DToolbox --add-data "icon.png;." --add-data "resource;resource" --add-data "utils;utils" --add-data "pages;pages" --add-data "filedialog;filedialog" --hidden-import=PySide6.QtWidgets --hidden-import=PySide6.QtCore --hidden-import=PySide6.QtGui
 ```
 
 ### 项目结构

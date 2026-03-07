@@ -2,11 +2,11 @@ import json
 import os
 import sys
 import threading
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QFileDialog, QTableWidget,
     QTableWidgetItem, QHBoxLayout, QMessageBox, QLabel, QHeaderView, QLineEdit, QGroupBox
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 from utils.common import save_config, load_config
 
 
