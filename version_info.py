@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-CURRENT_VERSION = "1.4.0"
-GITHUB_REPO = "KonshinHaoshin/gen_model"
+CURRENT_VERSION = "1.4.1"
+GITHUB_REPO = "PjShelter/live2dtoolbox"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 

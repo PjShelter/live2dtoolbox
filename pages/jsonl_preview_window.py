@@ -290,9 +290,13 @@ class JsonlPreviewWindow:
             if LIVE2D_V2_AVAILABLE:
                 live2d_v2.glewInit()
             if LIVE2D_V3_AVAILABLE:
-                live2d_v3.glewInit()
+                # v3 使用 glInit，不是 glewInit
+                if hasattr(live2d_v3, 'glInit'):
+                    live2d_v3.glInit()
+                else:
+                    live2d_v3.glewInit()
         except Exception as e:
-            print(f"初始化 GLEW 失败: {e}")
+            print(f"初始化 GL 失败: {e}")
             if LIVE2D_V2_AVAILABLE:
                 live2d_v2.dispose()
             if LIVE2D_V3_AVAILABLE:
@@ -354,21 +358,19 @@ class JsonlPreviewWindow:
                 print(f"⚠️ 警告: 归一化坐标超出范围，已限制")
         
         # 主循环
-        clock = pygame.time.Clock()
-        
         print("预览窗口已启动，按 ESC 或关闭窗口退出")
-        print(f"目标帧率: 30 FPS，窗口尺寸: {self.canvas_width}x{self.canvas_height}")
-        
+        print(f"窗口尺寸: {self.canvas_width}x{self.canvas_height}")
+
         # 性能统计
         frame_count = 0
         last_fps_time = pygame.time.get_ticks()
-        
+
         while self.running:
-            # 批量处理事件，提高效率
+            # 批量处理事件
             events = pygame.event.get()
             mouse_moved = False
             mouse_x, mouse_y = 0, 0
-            
+
             for event in events:
                 if event.type == pygame.QUIT:
                     self.running = False
@@ -376,11 +378,10 @@ class JsonlPreviewWindow:
                     if event.key == pygame.K_ESCAPE:
                         self.running = False
                 elif event.type == pygame.MOUSEMOTION:
-                    # 记录鼠标位置，稍后统一处理
                     mouse_moved = True
                     mouse_x, mouse_y = pygame.mouse.get_pos()
-            
-            # 只在鼠标移动时处理拖拽（减少不必要的调用）
+
+            # 只在鼠标移动时处理拖拽
             if mouse_moved:
                 if LIVE2D_V2_AVAILABLE:
                     for model in self.models_v2:
@@ -388,39 +389,37 @@ class JsonlPreviewWindow:
                 if LIVE2D_V3_AVAILABLE:
                     for model in self.models_v3:
                         model.Drag(mouse_x, mouse_y)
-            
-            # 清空缓冲区（每帧都需要）
-            if LIVE2D_V3_AVAILABLE:
+
+            # 清空缓冲区（只清一次，按实际使用的版本）
+            if self.models_v3 and LIVE2D_V3_AVAILABLE:
                 live2d_v3.clearBuffer()
-            if LIVE2D_V2_AVAILABLE:
+            elif self.models_v2 and LIVE2D_V2_AVAILABLE:
                 live2d_v2.clearBuffer()
-            
-            # 更新和绘制所有模型
-            # 先绘制 v2 模型
+
+            # 更新和绘制所有模型（v2 先，v3 后）
             if LIVE2D_V2_AVAILABLE:
                 for model in self.models_v2:
                     model.Update()
                     model.Draw()
-            
-            # 再绘制 v3 模型
+
             if LIVE2D_V3_AVAILABLE:
                 for model in self.models_v3:
                     model.Update()
                     model.Draw()
-            
+
             # 刷新显示
             pygame.display.flip()
-            
-            # 限制帧率为 30 FPS（提高稳定性）
-            clock.tick(30)
-            
-            # 每 60 帧输出一次 FPS（可选，用于调试）
+
+            # 使用 wait 而非 clock.tick，让 live2d 内部时钟自然推进
+            pygame.time.wait(10)
+
+            # 每 100 帧输出一次 FPS
             frame_count += 1
-            if frame_count % 60 == 0:
+            if frame_count % 100 == 0:
                 current_time = pygame.time.get_ticks()
                 elapsed = (current_time - last_fps_time) / 1000.0
                 if elapsed > 0:
-                    fps = 60 / elapsed 
+                    fps = 100 / elapsed
                     print(f"当前 FPS: {fps:.1f}")
                 last_fps_time = current_time
         

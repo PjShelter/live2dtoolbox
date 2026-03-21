@@ -161,7 +161,7 @@ class SingleModelPreviewWindow:
         
         # 初始化 pygame
         pygame.init()
-        
+
         # 初始化 live2d
         try:
             if LIVE2D_V2_AVAILABLE:
@@ -172,7 +172,7 @@ class SingleModelPreviewWindow:
             print(f"初始化 live2d 失败: {e}")
             pygame.quit()
             return
-        
+
         # 创建窗口
         display = (self.canvas_width, self.canvas_height)
         try:
@@ -180,14 +180,18 @@ class SingleModelPreviewWindow:
         except:
             screen = pygame.display.set_mode(display, pygame.DOUBLEBUF | pygame.OPENGL)
         pygame.display.set_caption("模型预览 - 按 ESC 退出")
-        
+
         try:
             if LIVE2D_V2_AVAILABLE:
                 live2d_v2.glewInit()
             if LIVE2D_V3_AVAILABLE:
-                live2d_v3.glewInit()
+                # v3 使用 glInit，不是 glewInit
+                if hasattr(live2d_v3, 'glInit'):
+                    live2d_v3.glInit()
+                else:
+                    live2d_v3.glewInit()
         except Exception as e:
-            print(f"初始化 GLEW 失败: {e}")
+            print(f"初始化 GL 失败: {e}")
             if LIVE2D_V2_AVAILABLE:
                 live2d_v2.dispose()
             if LIVE2D_V3_AVAILABLE:
@@ -235,10 +239,8 @@ class SingleModelPreviewWindow:
                 print(f"⚠️ Resize 后应用透明度设置时出错: {e}")
         
         # 主循环
-        clock = pygame.time.Clock()
-        
         print("预览窗口已启动，按 ESC 或关闭窗口退出")
-        
+
         while self.running:
             # 处理事件
             for event in pygame.event.get():
@@ -250,23 +252,22 @@ class SingleModelPreviewWindow:
                 elif event.type == pygame.MOUSEMOTION:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     self.model.Drag(mouse_x, mouse_y)
-            
-            # 清空缓冲区
-            if self.is_v3 and LIVE2D_V3_AVAILABLE:
-                live2d_v3.clearBuffer()
-            elif not self.is_v3 and LIVE2D_V2_AVAILABLE:
-                live2d_v2.clearBuffer()
-            
-            # 更新和绘制模型
+
+            # 清空缓冲区并渲染
             if self.model:
+                if self.is_v3 and LIVE2D_V3_AVAILABLE:
+                    live2d_v3.clearBuffer()
+                elif not self.is_v3 and LIVE2D_V2_AVAILABLE:
+                    live2d_v2.clearBuffer()
                 self.model.Update()
                 self.model.Draw()
-            
+
             # 刷新显示
             pygame.display.flip()
-            
-            # 限制帧率为 30 FPS
-            clock.tick(30)
+
+            # 使用 wait 而非 clock.tick，让 live2d 内部时钟自然推进
+            # 10ms ≈ 100 FPS 上限，live2d 内部会按实际时间插值动画
+            pygame.time.wait(10)
         
         # 设置运行标志为 False
         self.running = False
