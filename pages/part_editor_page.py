@@ -286,18 +286,19 @@ class PartEditorPage(QWidget):
         self.main_window = main_window
     
     def _close_preview_window(self):
-        """关闭预览窗口"""
+        """关闭预览窗口并等待线程退出"""
         if self.preview_window:
             try:
                 self.preview_window.running = False
             except:
                 pass
+            self.preview_window = None
         if self.preview_thread and self.preview_thread.is_alive():
-            # 等待线程结束（最多等待 1 秒）
-            self.preview_thread.join(timeout=1.0)
-        self.preview_window = None
+            self.preview_thread.join(timeout=3.0)
+            if self.preview_thread.is_alive():
+                print("警告: 预览窗口线程未能及时关闭")
         self.preview_thread = None
-        
+
         # 启用主窗口
         if self.main_window:
             self.main_window.enable_main_window()

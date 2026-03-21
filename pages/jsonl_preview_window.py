@@ -205,42 +205,39 @@ class JsonlPreviewWindow:
     
     def _initialize_opacity_parameters(self, model, model_path):
         """初始化透明度参数"""
-        # 读取原始 JSON 文件中的 init_opacities
         try:
             with open(model_path, "r", encoding="utf-8") as f:
                 original_data = json.load(f)
-            
-            if "init_opacities" in original_data:
-                init_opacities = original_data["init_opacities"]
-                print(f"📋 找到 {len(init_opacities)} 个透明度设置")
-                
-                for opacity_setting in init_opacities:
-                    part_id = opacity_setting.get("id", "")
-                    opacity_value = float(opacity_setting.get("value", 1.0))
-                    
-                    # 尝试设置部件透明度
+
+            if "init_opacities" not in original_data:
+                return
+
+            init_opacities = original_data["init_opacities"]
+            print(f"📋 找到 {len(init_opacities)} 个透明度设置")
+
+            # 构建一次 dict，避免 O(n²) 的 list.index() 查找
+            part_id_to_index = {pid: idx for idx, pid in enumerate(model.GetPartIds())}
+
+            set_opacity = (
+                model.SetPartOpacity if hasattr(model, "SetPartOpacity")
+                else model.setPartsOpacity if hasattr(model, "setPartsOpacity")
+                else None
+            )
+            if set_opacity is None:
+                print("⚠️ 模型不支持 SetPartOpacity")
+                return
+
+            for item in init_opacities:
+                part_id = item.get("id", "")
+                opacity_value = float(item.get("value", 1.0))
+                if part_id in part_id_to_index:
                     try:
-                        if hasattr(model, "SetPartOpacity"):
-                            # 查找部件索引
-                            part_ids = model.GetPartIds()
-                            if part_id in part_ids:
-                                part_index = part_ids.index(part_id)
-                                model.SetPartOpacity(part_index, opacity_value)
-                                print(f"✅ 设置部件 {part_id} 透明度 = {opacity_value}")
-                            else:
-                                print(f"⚠️  部件 {part_id} 不存在")
-                        elif hasattr(model, "setPartsOpacity"):
-                            # 旧版本 API
-                            part_ids = model.GetPartIds()
-                            if part_id in part_ids:
-                                part_index = part_ids.index(part_id)
-                                model.setPartsOpacity(part_index, opacity_value)
-                                print(f"✅ 设置部件 {part_id} 透明度 = {opacity_value}")
-                            else:
-                                print(f"⚠️  部件 {part_id} 不存在")
+                        set_opacity(part_id_to_index[part_id], opacity_value)
                     except Exception as e:
                         print(f"❌ 设置部件 {part_id} 透明度失败: {e}")
-                        
+                else:
+                    print(f"⚠️  部件 {part_id} 不存在")
+
         except Exception as e:
             print(f"❌ 读取原始 JSON 文件失败: {e}")
             import traceback
@@ -428,16 +425,9 @@ class JsonlPreviewWindow:
         
         # 清理资源
         print("正在清理资源...")
-        for model in self.models_v2:
-            try:
-                model = None
-            except:
-                pass
-        for model in self.models_v3:
-            try:
-                model = None
-            except:
-                pass
+        self.models_v2.clear()
+        self.models_v3.clear()
+        self.model_configs.clear()
         
         # 删除临时文件
         for temp_file in self.temp_files:

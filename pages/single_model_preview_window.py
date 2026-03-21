@@ -88,6 +88,27 @@ class SingleModelPreviewWindow:
             traceback.print_exc()
             return None
     
+    def _apply_opacities(self, label: str = ""):
+        """将 init_opacities 应用到当前模型"""
+        if self.init_opacities is None or not self.model:
+            return
+        try:
+            part_id_to_index = {pid: idx for idx, pid in enumerate(self.model.GetPartIds())}
+            applied = 0
+            for item in self.init_opacities:
+                part_id = item.get("id")
+                opacity = float(item.get("value", 0.0))
+                if part_id in part_id_to_index:
+                    idx = part_id_to_index[part_id]
+                    if hasattr(self.model, "SetPartOpacity"):
+                        self.model.SetPartOpacity(idx, opacity)
+                    elif hasattr(self.model, "SetPart"):
+                        self.model.SetPart(idx, opacity)
+                    applied += 1
+            print(f"✅ {label}应用了 {applied} 个部件的透明度设置")
+        except Exception as e:
+            print(f"⚠️ {label}应用透明度设置时出错: {e}")
+
     def _load_model(self) -> bool:
         """加载模型"""
         if not LIVE2D_AVAILABLE:
@@ -118,33 +139,8 @@ class SingleModelPreviewWindow:
             # 加载模型
             self.model.LoadModelJson(temp_path)
             print(f"✅ 已加载模型: {self.model_json_path}")
-            
-            # 手动应用 init_opacities（确保预设正确应用）
-            if self.init_opacities is not None:
-                try:
-                    part_ids = self.model.GetPartIds()
-                    part_id_to_index = {part_id: idx for idx, part_id in enumerate(part_ids)}
-                    
-                    applied_count = 0
-                    for item in self.init_opacities:
-                        part_id = item.get("id")
-                        opacity = float(item.get("value", 0.0))
-                        
-                        if part_id in part_id_to_index:
-                            part_index = part_id_to_index[part_id]
-                            # 使用 SetPartOpacity 方法设置部件透明度
-                            if hasattr(self.model, "SetPartOpacity"):
-                                self.model.SetPartOpacity(part_index, opacity)
-                                applied_count += 1
-                            elif hasattr(self.model, "SetPart"):
-                                # 某些版本的库可能使用 SetPart 方法
-                                self.model.SetPart(part_index, opacity)
-                                applied_count += 1
-                    
-                    print(f"✅ 已手动应用 {applied_count} 个部件的透明度设置")
-                except Exception as e:
-                    print(f"⚠️ 手动应用透明度设置时出错（可能库会自动应用）: {e}")
-            
+
+            self._apply_opacities("加载后")
             return True
             
         except Exception as e:
@@ -211,32 +207,8 @@ class SingleModelPreviewWindow:
         
         # 调整模型大小
         self.model.Resize(*display)
-        
-        # Resize 后重新应用透明度设置（因为 Resize 可能会重置状态）
-        if self.init_opacities is not None and self.model:
-            try:
-                part_ids = self.model.GetPartIds()
-                part_id_to_index = {part_id: idx for idx, part_id in enumerate(part_ids)}
-                
-                applied_count = 0
-                for item in self.init_opacities:
-                    part_id = item.get("id")
-                    opacity = float(item.get("value", 0.0))
-                    
-                    if part_id in part_id_to_index:
-                        part_index = part_id_to_index[part_id]
-                        # 尝试使用 SetPartOpacity 方法
-                        if hasattr(self.model, "SetPartOpacity"):
-                            self.model.SetPartOpacity(part_index, opacity)
-                            applied_count += 1
-                        elif hasattr(self.model, "SetPart"):
-                            self.model.SetPart(part_index, opacity)
-                            applied_count += 1
-                
-                if applied_count > 0:
-                    print(f"✅ Resize 后重新应用了 {applied_count} 个部件的透明度设置")
-            except Exception as e:
-                print(f"⚠️ Resize 后应用透明度设置时出错: {e}")
+        # Resize 可能会重置部件状态，重新应用透明度
+        self._apply_opacities("Resize 后")
         
         # 主循环
         print("预览窗口已启动，按 ESC 或关闭窗口退出")

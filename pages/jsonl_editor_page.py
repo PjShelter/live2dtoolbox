@@ -288,26 +288,21 @@ class JsonlEditorPage(QWidget):
         self.main_window = main_window
     
     def _close_preview_window(self):
-        """关闭预览窗口"""
+        """关闭预览窗口并等待线程退出"""
         if self.preview_window is not None:
             try:
-                # 如果预览窗口有关闭方法，调用它
-                if hasattr(self.preview_window, 'close'):
-                    self.preview_window.close()
-                elif hasattr(self.preview_window, 'running'):
-                    self.preview_window.running = False
+                self.preview_window.running = False
             except Exception as e:
                 print(f"关闭预览窗口时出错: {e}")
             finally:
                 self.preview_window = None
-        
-        # 等待线程结束（最多等待 1 秒）
+
         if self.preview_thread is not None and self.preview_thread.is_alive():
-            self.preview_thread.join(timeout=1.0)
+            self.preview_thread.join(timeout=3.0)
             if self.preview_thread.is_alive():
                 print("警告: 预览窗口线程未能及时关闭")
-        
-        # 启用主窗口
+        self.preview_thread = None
+
         if self.main_window:
             self.main_window.enable_main_window()
 
@@ -323,11 +318,9 @@ class JsonlEditorPage(QWidget):
             import traceback
             traceback.print_exc()
         finally:
-            # 预览窗口关闭后，启用主窗口
             if self.main_window:
                 self.main_window.enable_main_window()
-            # 清理引用
             self.preview_window = None
-            # 注意：不要在这里设置 self.preview_thread = None，因为线程可能还在运行
+            self.preview_thread = None
 
 
