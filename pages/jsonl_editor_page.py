@@ -13,6 +13,7 @@ from utils.common import save_config, load_config
 class JsonlEditorPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAcceptDrops(True)
         self.jsonl_path = ""
         self.data = []
         self.summary_line = None  # 保存 summary 行（包含 motions/expressions/import）
@@ -66,26 +67,20 @@ class JsonlEditorPage(QWidget):
         self.layout.addWidget(self.table)
 
     def load_jsonl(self):
-        # 读取上次打开的目录
         config = load_config()
         last_open_dir = config.get("jsonl_last_open_dir", "")
         if not last_open_dir or not os.path.isdir(last_open_dir):
             last_open_dir = ""
-        
+
         path, _ = QFileDialog.getOpenFileName(
-            self, 
-            "选择 JSONL 文件", 
-            last_open_dir,  # 使用上次打开的目录
-            "JSONL 文件 (*.jsonl)"
+            self, "选择 JSONL 文件", last_open_dir, "JSONL 文件 (*.jsonl)"
         )
         if not path:
             return
-        
-        # 保存本次打开的目录到配置
-        open_dir = os.path.dirname(path)
-        if open_dir and os.path.isdir(open_dir):
-            save_config({"jsonl_last_open_dir": open_dir})
 
+        self._load_file(path)
+
+    def _parse_and_display(self, path: str):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
@@ -94,7 +89,6 @@ class JsonlEditorPage(QWidget):
             self.path_label.setText(f"当前文件：{path}")
             self.data = []
             self.summary_line = None
-
             self.table.setRowCount(0)
 
             for line in lines:
@@ -103,9 +97,7 @@ class JsonlEditorPage(QWidget):
                     continue
                 obj = json.loads(line)
                 if "motions" in obj or "expressions" in obj:
-                    # 保存 summary 行
                     self.summary_line = obj
-                    # 读取 import 参数并显示
                     import_val = obj.get("import")
                     if import_val is not None:
                         self.import_input.setText(str(import_val))
@@ -286,6 +278,28 @@ class JsonlEditorPage(QWidget):
     def set_main_window(self, main_window):
         """设置主窗口引用"""
         self.main_window = main_window
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if any(u.toLocalFile().endswith(".jsonl") for u in urls):
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            path = url.toLocalFile()
+            if path.endswith(".jsonl") and os.path.isfile(path):
+                self._load_file(path)
+                break
+
+    def _load_file(self, path: str):
+        """统一的文件加载入口，供按钮和拖拽共用"""
+        open_dir = os.path.dirname(path)
+        if open_dir and os.path.isdir(open_dir):
+            save_config({"jsonl_last_open_dir": open_dir})
+        self._parse_and_display(path)
     
     def _close_preview_window(self):
         """关闭预览窗口并等待线程退出"""

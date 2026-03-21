@@ -6,12 +6,54 @@ import threading
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QFileDialog,
-    QTableWidget, QTableWidgetItem, QLabel, QMessageBox, QHBoxLayout
+    QTableWidget, QTableWidgetItem, QLabel, QMessageBox, QHBoxLayout, QShortcut
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QUndoStack, QUndoCommand, QKeySequence
 
 from sections.py_live2d_editor import list_model_info
 from pages.single_model_preview_window import SingleModelPreviewWindow
+from utils.common import save_config, load_config
+
+
+class _ModelLoader(QThread):
+    """后台加载模型信息，避免阻塞 UI 主线程"""
+    finished = Signal(list, list)   # part_ids, param_objs
+    error = Signal(str)
+
+    def __init__(self, file_path: str):
+        super().__init__()
+        self.file_path = file_path
+
+    def run(self):
+        try:
+            part_ids, param_objs = list_model_info(self.file_path)
+            self.finished.emit(part_ids, param_objs)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class _OpacityChangeCommand(QUndoCommand):
+    """记录单次透明度修改，支持撤销/重做"""
+    def __init__(self, page, row: int, old_val: str, new_val: str):
+        super().__init__(f"修改透明度 行{row+1}: {old_val} → {new_val}")
+        self.page = page
+        self.row = row
+        self.old_val = old_val
+        self.new_val = new_val
+
+    def _set(self, val: str):
+        self.page.user_changing = True
+        item = self.page.table.item(self.row, 1)
+        if item:
+            item.setText(val)
+        self.page.user_changing = False
+
+    def undo(self):
+        self._set(self.old_val)
+
+    def redo(self):
+        self._set(self.new_val)
 
 
 def list_model_parts(model_json_path):
@@ -34,6 +76,7 @@ def list_model_parts(model_json_path):
 class PartEditorPage(QWidget):
     def __init__(self):
         super().__init__()
+        self.setAcceptDrops(True)
 
         self.model_path = ""
         self.part_ids = []
@@ -83,66 +126,59 @@ class PartEditorPage(QWidget):
         self.preview_window = None
         self.main_window = None
         self.user_changing = False  # 防止循环更新
+        self._loader = None  # 后台模型加载线程
+
+        # 撤销/重做
+        self._undo_stack = QUndoStack(self)
+        self._pending_old_val = {}  # row -> 编辑前的值，用于构造 Command
+        self.table.itemDoubleClicked.connect(self._capture_old_val)
+
+        QShortcut(QKeySequence.StandardKey.Undo, self, self._undo_stack.undo)
+        QShortcut(QKeySequence.StandardKey.Redo, self, self._undo_stack.redo)
 
     def load_model_json(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "选择 model.json 文件", "", "Model JSON (*.json)")
+        config = load_config()
+        last_dir = config.get("part_last_open_dir", "")
+        if not last_dir or not os.path.isdir(last_dir):
+            last_dir = ""
+
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择 model.json 文件", last_dir, "Model JSON (*.json)")
         if not file_path:
             return
 
-        self.model_path = file_path
-        self.label.setText(f"已加载: {file_path}")
-        
-        # 启用预览按钮
+        self._load_file(file_path)
+
+    def _on_model_load_error(self, msg: str):
+        self.load_btn.setEnabled(True)
+        self.label.setText("加载失败")
+        QMessageBox.critical(self, "加载失败", f"模型加载失败：{msg}")
+
+    def _on_model_loaded(self, part_ids: list, param_objs: list):
+        self.load_btn.setEnabled(True)
         self.preview_btn.setEnabled(True)
+        self.label.setText(f"已加载: {self.model_path}")
 
+        self.part_ids = part_ids
+
+        # 加载已有 init_opacities
         try:
-            self.part_ids, param_objs = list_model_info(file_path)
-
-            # 保存参数范围信息
-            self.param_data_map = {}
-            for p in param_objs:
-                self.param_data_map[str(p.id)] = {
-                    "default": p.default,
-                    "min": p.min,
-                    "max": p.max
-                }
-        except Exception as e:
-            QMessageBox.critical(self, "加载失败", f"模型加载失败：{str(e)}")
-            return
-
-        # 加载已有 init_opacities（如有）
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(self.model_path, 'r', encoding='utf-8') as f:
                 model_data = json.load(f)
-                init_opacities = model_data.get("init_opacities", [])
-                self.part_opacities = {entry["id"]: entry["value"] for entry in init_opacities}
+            self.part_opacities = {e["id"]: e["value"] for e in model_data.get("init_opacities", [])}
+            self.param_values = {e["id"]: e["value"] for e in model_data.get("init_params", [])}
         except Exception as e:
-            QMessageBox.warning(self, "警告", f"无法读取已有透明度信息：{str(e)}")
+            QMessageBox.warning(self, "警告", f"无法读取已有配置信息：{str(e)}")
             self.part_opacities = {}
-
-        self.refresh_table()
-
-        # 导入 init_param 初始值（只用于显示默认值）
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                model_data = json.load(f)
-                init_params = model_data.get("init_params", [])
-                self.param_values = {entry["id"]: entry["value"] for entry in init_params}
-        except Exception as e:
-            QMessageBox.warning(self, "警告", f"无法读取参数信息：{str(e)}")
             self.param_values = {}
 
-        # ✅ 使用模型实际的 paramId 列表，而不是只用 json 中的 init_params
         self.param_ids = []
         self.param_data_map = {}
         for p in param_objs:
-            pid = str(p.id)  # ⚠️ 确保是字符串
+            pid = str(p.id)
             self.param_ids.append(pid)
-            self.param_data_map[pid] = {
-                "default": p.default,
-                "min": p.min,
-                "max": p.max
-            }
+            self.param_data_map[pid] = {"default": p.default, "min": p.min, "max": p.max}
+
+        self.refresh_table()
         self.refresh_param_table()
 
     def refresh_param_table(self):
@@ -180,8 +216,10 @@ class PartEditorPage(QWidget):
         try:
             self.table.itemChanged.disconnect(self.on_opacity_changed)
         except TypeError:
-            # 如果信号未连接，忽略错误
             pass
+
+        self._undo_stack.clear()
+        self._pending_old_val.clear()
         
         self.table.setRowCount(len(self.part_ids))
         for row, part_id in enumerate(self.part_ids):
@@ -196,28 +234,37 @@ class PartEditorPage(QWidget):
         # 重新连接信号
         self.table.itemChanged.connect(self.on_opacity_changed)
     
+    def _capture_old_val(self, item):
+        """双击时记录编辑前的值，用于构造撤销命令"""
+        if item.column() == 1:
+            self._pending_old_val[item.row()] = item.text()
+
     def on_opacity_changed(self, item):
-        """当透明度值改变时，实时更新预览"""
-        if self.user_changing:
+        """当透明度值改变时，推送撤销命令并实时更新预览"""
+        if self.user_changing or item.column() != 1:
             return
-        
-        # 如果预览窗口正在运行，更新透明度
+
+        row = item.row()
+        new_val = item.text()
+        old_val = self._pending_old_val.pop(row, new_val)
+
+        # 只有值真正变化时才推入撤销栈
+        if old_val != new_val:
+            cmd = _OpacityChangeCommand(self, row, old_val, new_val)
+            # 推入时不再触发 redo（值已经是新的），直接 push 即可
+            self._undo_stack.push(cmd)
+
+        # 实时更新预览窗口
         if self.preview_window and self.preview_thread and self.preview_thread.is_alive():
             try:
                 if self.preview_window.model:
-                    # 获取当前行的部件ID
-                    row = item.row()
                     part_id_item = self.table.item(row, 0)
                     if part_id_item:
                         part_id = part_id_item.text()
                         try:
-                            opacity = float(item.text())
-                            opacity = max(0.0, min(1.0, opacity))
-                            
-                            # 更新预览窗口中的透明度
+                            opacity = max(0.0, min(1.0, float(new_val)))
                             part_ids = self.preview_window.model.GetPartIds()
                             part_id_to_index = {pid: idx for idx, pid in enumerate(part_ids)}
-                            
                             if part_id in part_id_to_index:
                                 part_index = part_id_to_index[part_id]
                                 if hasattr(self.preview_window.model, "SetPartOpacity"):
@@ -302,6 +349,34 @@ class PartEditorPage(QWidget):
         # 启用主窗口
         if self.main_window:
             self.main_window.enable_main_window()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if any(u.toLocalFile().endswith(".json") for u in urls):
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            path = url.toLocalFile()
+            if path.endswith(".json") and os.path.isfile(path):
+                self._load_file(path)
+                break
+
+    def _load_file(self, file_path: str):
+        """统一的文件加载入口，供按钮和拖拽共用"""
+        save_config({"part_last_open_dir": os.path.dirname(file_path)})
+        self.model_path = file_path
+        self.label.setText(f"正在加载: {file_path} ...")
+        self.load_btn.setEnabled(False)
+        self.preview_btn.setEnabled(False)
+
+        self._loader = _ModelLoader(file_path)
+        self._loader.finished.connect(self._on_model_loaded)
+        self._loader.error.connect(self._on_model_load_error)
+        self._loader.start()
 
     def save_model_json(self):
         if not self.model_path:
