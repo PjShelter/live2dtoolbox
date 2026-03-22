@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 
 from sections.gen_jsonl import collect_jsons_to_jsonl, is_valid_live2d_json
 from sections.py_live2d_editor import get_all_param_info_list
+from utils.composite_jsonl import parse_composite_jsonl, stringify_composite_jsonl
 from utils.common import save_config, load_config, get_resource_path, _norm_id, _pget, _to_key
 
 # ===== Live2D 依赖（用于一键计算）=====
@@ -22,6 +23,31 @@ try:
     _LIVE2D_OK = True
 except Exception:
     _LIVE2D_OK = False
+
+TABLE_COLUMNS = [
+    "index",
+    "type",
+    "id",
+    "path",
+    "folder",
+    "x",
+    "y",
+    "xscale",
+    "yscale",
+    "loop",
+    "muted",
+    "autoplay",
+    "playsinline",
+]
+
+
+def _parse_bool_text(value: str):
+    lowered = value.strip().lower()
+    if lowered in {"true", "1", "yes", "y"}:
+        return True
+    if lowered in {"false", "0", "no", "n"}:
+        return False
+    return None
 
 
 class JsonlGeneratorPage(QWidget):
@@ -176,15 +202,12 @@ class JsonlGeneratorPage(QWidget):
     def _inject_import_to_summary(self, output_path: str, import_val: int):
         try:
             with open(output_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-            if not lines:
-                return
-            last_obj = json.loads(lines[-1].strip())
-            if isinstance(last_obj, dict):
-                last_obj["import"] = import_val
-                lines[-1] = json.dumps(last_obj, ensure_ascii=False) + "\n"
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.writelines(lines)
+                manifest = parse_composite_jsonl(f.read(), source=output_path)
+            summary = dict(manifest.get("summary", {}))
+            summary["import"] = import_val
+            text = stringify_composite_jsonl(manifest.get("parts", []), summary)
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(text + "\n")
         except Exception as e:
             print(f"⚠️ 注入 import 失败：{e}")
 
@@ -245,8 +268,8 @@ class JsonlPreviewDialog(QDialog):
         layout.addWidget(calc_group)
 
         # ===== 表格 =====
-        self.table = QTableWidget(0, 8)
-        self.table.setHorizontalHeaderLabels(["index", "id", "path", "folder", "x", "y", "xscale", "yscale"])
+        self.table = QTableWidget(0, len(TABLE_COLUMNS))
+        self.table.setHorizontalHeaderLabels(TABLE_COLUMNS)
         self.table.setAlternatingRowColors(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.horizontalHeader().setStretchLastSection(True)
@@ -270,19 +293,16 @@ class JsonlPreviewDialog(QDialog):
     def load_jsonl(self):
         try:
             with open(self.jsonl_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
+                manifest = parse_composite_jsonl(f.read(), source=self.jsonl_path)
 
-            self.data.clear()
-            self.summary_lines.clear()
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                obj = json.loads(line)
-                if "motions" in obj or "expressions" in obj:
-                    self.summary_lines.append(obj)
-                else:
-                    self.data.append(obj)
+            self.data = [dict(item) for item in manifest.get("parts", [])]
+            for item in self.data:
+                item.pop("lineNumber", None)
+            self.summary_lines = []
+            summary = dict(manifest.get("summary", {}))
+            summary.pop("lineNumber", None)
+            if summary:
+                self.summary_lines.append(summary)
 
             self.refresh_table()
         except Exception as e:
@@ -291,9 +311,8 @@ class JsonlPreviewDialog(QDialog):
 
     def refresh_table(self):
         self.table.setRowCount(len(self.data))
-        headers = ["index", "id", "path", "folder", "x", "y", "xscale", "yscale"]
         for row, obj in enumerate(self.data):
-            for col, key in enumerate(headers):
+            for col, key in enumerate(TABLE_COLUMNS):
                 value = obj.get(key, "")
                 item = QTableWidgetItem("" if value is None else str(value))
                 if key in ["index", "id", "path", "folder"]:
@@ -313,10 +332,9 @@ class JsonlPreviewDialog(QDialog):
             "xscale": self.xs_default.text().strip(),
             "yscale": self.ys_default.text().strip(),
         }
-        headers = ["index", "id", "path", "folder", "x", "y", "xscale", "yscale"]
         for row in range(self.table.rowCount()):
             for key in ["x", "y", "xscale", "yscale"]:
-                col = headers.index(key)
+                col = TABLE_COLUMNS.index(key)
                 item = self.table.item(row, col)
                 if not item:
                     item = QTableWidgetItem("")
@@ -396,14 +414,13 @@ class JsonlPreviewDialog(QDialog):
             # 如果输入不是数值（比如特殊键名），就不做范围检测，只做坐标计算
             target_import_val = None
 
-        headers = ["index", "id", "path", "folder", "x", "y", "xscale", "yscale"]
         success, fail = 0, 0
 
         # === 新增：收集“范围不覆盖目标 import”的模型信息 ===
         not_covered = []  # [(row_index, model_basename, min, max)]
 
         for row in range(self.table.rowCount()):
-            path_item = self.table.item(row, headers.index("path"))
+            path_item = self.table.item(row, TABLE_COLUMNS.index("path"))
             if not path_item:
                 fail += 1
                 continue
@@ -472,7 +489,7 @@ class JsonlPreviewDialog(QDialog):
 
                 # 回写表格（x/y 填相对量）
                 for k, v in (("x", delta_x), ("y", delta_y)):
-                    col = headers.index(k)
+                    col = TABLE_COLUMNS.index(k)
                     item = self.table.item(row, col)
                     if not item:
                         item = QTableWidgetItem("")
@@ -508,20 +525,33 @@ class JsonlPreviewDialog(QDialog):
     def save_as_jsonl(self):
         # 先把表格回写到 self.data
         try:
-            headers = ["index", "id", "path", "folder", "x", "y", "xscale", "yscale"]
             for row, obj in enumerate(self.data):
-                for key in ["x", "y", "xscale", "yscale"]:
-                    col = headers.index(key)
+                for col, key in enumerate(TABLE_COLUMNS):
                     item = self.table.item(row, col)
                     text = item.text().strip() if item else ""
-                    if text == "":
-                        if key in obj:
-                            del obj[key]
+                    if key in ["index", "id", "path", "folder"]:
                         continue
-                    try:
-                        obj[key] = float(text)
-                    except ValueError:
-                        if key in obj:
+                    if key in ["x", "y", "xscale", "yscale"]:
+                        if text == "":
+                            if key in obj:
+                                del obj[key]
+                            continue
+                        try:
+                            obj[key] = float(text)
+                        except ValueError:
+                            if key in obj:
+                                del obj[key]
+                    elif key in ["loop", "muted", "autoplay", "playsinline"]:
+                        parsed = _parse_bool_text(text)
+                        if parsed is not None:
+                            obj[key] = parsed
+                        elif key in obj:
+                            del obj[key]
+                    elif key == "type":
+                        normalized = text.lower() if text else ""
+                        if normalized in {"live2d", "image", "gif", "video"}:
+                            obj[key] = normalized
+                        elif key in obj:
                             del obj[key]
         except Exception as e:
             QMessageBox.critical(self, "保存失败", f"读取表格出错：{e}")

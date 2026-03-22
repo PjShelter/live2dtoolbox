@@ -6,10 +6,10 @@ import threading
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QFileDialog,
-    QTableWidget, QTableWidgetItem, QLabel, QMessageBox, QHBoxLayout, QShortcut
+    QTableWidget, QTableWidgetItem, QLabel, QMessageBox, QHBoxLayout
 )
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QUndoStack, QUndoCommand, QKeySequence
+from PySide6.QtGui import QUndoStack, QUndoCommand, QKeySequence, QShortcut
 
 from sections.py_live2d_editor import list_model_info
 from pages.single_model_preview_window import SingleModelPreviewWindow

@@ -7,7 +7,33 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QHBoxLayout, QMessageBox, QLabel, QHeaderView, QLineEdit, QGroupBox
 )
 from PySide6.QtCore import Qt
+from utils.composite_jsonl import parse_composite_jsonl, stringify_composite_jsonl
 from utils.common import save_config, load_config
+
+TABLE_COLUMNS = [
+    "index",
+    "type",
+    "id",
+    "path",
+    "folder",
+    "x",
+    "y",
+    "xscale",
+    "yscale",
+    "loop",
+    "muted",
+    "autoplay",
+    "playsinline",
+]
+
+
+def _parse_bool_text(value: str):
+    lowered = value.strip().lower()
+    if lowered in {"true", "1", "yes", "y"}:
+        return True
+    if lowered in {"false", "0", "no", "n"}:
+        return False
+    return None
 
 
 class JsonlEditorPage(QWidget):
@@ -49,6 +75,11 @@ class JsonlEditorPage(QWidget):
         # Import 参数编辑区域
         import_group = QGroupBox("Import 参数（最后一行）")
         import_layout = QHBoxLayout()
+        import_layout.addWidget(QLabel("version:"))
+        self.version_input = QLineEdit()
+        self.version_input.setPlaceholderText("2")
+        self.version_input.setMaximumWidth(120)
+        import_layout.addWidget(self.version_input)
         import_layout.addWidget(QLabel("import:"))
         self.import_input = QLineEdit()
         self.import_input.setPlaceholderText("输入数字（例如：100）")
@@ -59,8 +90,8 @@ class JsonlEditorPage(QWidget):
         self.layout.addWidget(import_group)
 
         # 表格展示
-        self.table = QTableWidget(0, 8)
-        self.table.setHorizontalHeaderLabels(["index", "id", "path", "folder", "x", "y", "xscale", "yscale"])
+        self.table = QTableWidget(0, len(TABLE_COLUMNS))
+        self.table.setHorizontalHeaderLabels(TABLE_COLUMNS)
         self.table.setAlternatingRowColors(True)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -83,28 +114,26 @@ class JsonlEditorPage(QWidget):
     def _parse_and_display(self, path: str):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
+                manifest = parse_composite_jsonl(f.read(), source=path)
 
             self.jsonl_path = path
             self.path_label.setText(f"当前文件：{path}")
-            self.data = []
-            self.summary_line = None
+            self.data = [dict(item) for item in manifest.get("parts", [])]
+            for item in self.data:
+                item.pop("lineNumber", None)
+            self.summary_line = dict(manifest.get("summary", {}))
+            self.summary_line.pop("lineNumber", None)
+            version_val = self.summary_line.get("version")
+            if version_val is not None:
+                self.version_input.setText(str(version_val))
+            else:
+                self.version_input.clear()
+            import_val = self.summary_line.get("import")
+            if import_val is not None:
+                self.import_input.setText(str(import_val))
+            else:
+                self.import_input.clear()
             self.table.setRowCount(0)
-
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                obj = json.loads(line)
-                if "motions" in obj or "expressions" in obj:
-                    self.summary_line = obj
-                    import_val = obj.get("import")
-                    if import_val is not None:
-                        self.import_input.setText(str(import_val))
-                    else:
-                        self.import_input.clear()
-                    continue
-                self.data.append(obj)
 
             self.refresh_table()
         except Exception as e:
@@ -113,10 +142,10 @@ class JsonlEditorPage(QWidget):
     def refresh_table(self):
         self.table.setRowCount(len(self.data))
         for row, obj in enumerate(self.data):
-            for col, key in enumerate(["index", "id", "path", "folder", "x", "y", "xscale", "yscale"]):
+            for col, key in enumerate(TABLE_COLUMNS):
                 value = obj.get(key, "")
                 item = QTableWidgetItem(str(value))
-                if key in ["index", "x", "y", "xscale", "yscale"]:
+                if key in ["index", "x", "y", "xscale", "yscale", "loop", "muted", "autoplay", "playsinline"]:
                     item.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(row, col, item)
 
@@ -128,44 +157,68 @@ class JsonlEditorPage(QWidget):
         try:
             # 从表格更新 self.data
             for row, obj in enumerate(self.data):
-                for key in ["x", "y", "xscale", "yscale"]:
-                    item = self.table.item(row, ["index", "id", "path", "folder", "x", "y", "xscale", "yscale"].index(key))
-                    try:
-                        value = float(item.text()) if item and item.text().strip() else None
-                        if value is not None:
-                            obj[key] = value
+                for col, key in enumerate(TABLE_COLUMNS):
+                    item = self.table.item(row, col)
+                    text = item.text().strip() if item else ""
+                    if key == "index":
+                        if text:
+                            try:
+                                obj[key] = int(float(text))
+                            except ValueError:
+                                pass
                         elif key in obj:
-                            del obj[key]  # 删除空值字段
-                    except ValueError:
-                        continue  # 跳过非法数字
-
-            # 读取原始 JSONL 并写回（保留 summary 行）
-            with open(self.jsonl_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-
-            new_lines = []
-            idx = 0
-            for line in lines:
-                obj = json.loads(line)
-                if "motions" in obj or "expressions" in obj:
-                    # 更新 summary 行的 import 参数
-                    import_text = self.import_input.text().strip()
-                    if import_text:
+                            del obj[key]
+                    elif key in ["x", "y", "xscale", "yscale"]:
                         try:
-                            obj["import"] = int(import_text)
+                            value = float(text) if text else None
+                            if value is not None:
+                                obj[key] = value
+                            elif key in obj:
+                                del obj[key]
                         except ValueError:
-                            QMessageBox.warning(self, "警告", f"import 参数必须是整数，当前值：{import_text}")
-                            return
-                    elif "import" in obj:
-                        # 如果输入框为空，删除 import 字段
-                        del obj["import"]
-                    new_lines.append(json.dumps(obj, ensure_ascii=False) + '\n')
-                else:
-                    new_lines.append(json.dumps(self.data[idx], ensure_ascii=False) + '\n')
-                    idx += 1
+                            continue
+                    elif key in ["loop", "muted", "autoplay", "playsinline"]:
+                        parsed = _parse_bool_text(text)
+                        if parsed is not None:
+                            obj[key] = parsed
+                        elif key in obj:
+                            del obj[key]
+                    elif key == "type":
+                        normalized = text.lower() if text else ""
+                        if normalized in {"live2d", "image", "gif", "video"}:
+                            obj[key] = normalized
+                        elif key in obj:
+                            del obj[key]
+                    else:
+                        if text:
+                            obj[key] = text
+                        elif key in obj:
+                            del obj[key]
+
+            summary = dict(self.summary_line or {})
+            version_text = self.version_input.text().strip()
+            if version_text:
+                try:
+                    summary["version"] = int(float(version_text))
+                except ValueError:
+                    QMessageBox.warning(self, "警告", f"version 必须是整数，当前值：{version_text}")
+                    return
+            else:
+                summary.pop("version", None)
+            import_text = self.import_input.text().strip()
+            if import_text:
+                try:
+                    summary["import"] = int(import_text)
+                except ValueError:
+                    QMessageBox.warning(self, "警告", f"import 参数必须是整数，当前值：{import_text}")
+                    return
+            else:
+                summary.pop("import", None)
+
+            new_text = stringify_composite_jsonl(self.data, summary)
 
             with open(self.jsonl_path, "w", encoding="utf-8") as f:
-                f.writelines(new_lines)
+                f.write(new_text + "\n")
 
             QMessageBox.information(self, "保存成功", f"已保存：{self.jsonl_path}")
         except Exception as e:
@@ -179,20 +232,41 @@ class JsonlEditorPage(QWidget):
         # 更新 self.data 以包含用户在表格中的修改
         try:
             for row, obj in enumerate(self.data):
-                for col, key in enumerate(["index", "id", "path", "folder", "x", "y", "xscale", "yscale"]):
+                for col, key in enumerate(TABLE_COLUMNS):
                     item = self.table.item(row, col)
                     if item:
                         text = item.text().strip()
-                        if key in ["index"]:
-                            obj[key] = int(text) if text.isdigit() else 0
+                        if key == "index":
+                            if text:
+                                try:
+                                    obj[key] = int(float(text))
+                                except ValueError:
+                                    obj[key] = 0
+                            elif key in obj:
+                                del obj[key]
                         elif key in ["x", "y", "xscale", "yscale"]:
                             try:
                                 obj[key] = float(text)
-                            except:
+                            except Exception:
                                 if key in obj:
-                                    del obj[key]  # 无效数字就删掉
+                                    del obj[key]
+                        elif key in ["loop", "muted", "autoplay", "playsinline"]:
+                            parsed = _parse_bool_text(text)
+                            if parsed is not None:
+                                obj[key] = parsed
+                            elif key in obj:
+                                del obj[key]
+                        elif key == "type":
+                            normalized = text.lower() if text else ""
+                            if normalized in {"live2d", "image", "gif", "video"}:
+                                obj[key] = normalized
+                            elif key in obj:
+                                del obj[key]
                         else:
-                            obj[key] = text
+                            if text:
+                                obj[key] = text
+                            elif key in obj:
+                                del obj[key]
         except Exception as e:
             QMessageBox.critical(self, "⚠️", f"更新表格数据失败：{e}")
             return
@@ -219,34 +293,30 @@ class JsonlEditorPage(QWidget):
             save_config({"jsonl_last_save_dir": save_dir})
 
         try:
-            # 构建新的 JSONL 内容
-            lines = []
-            for obj in self.data:
-                lines.append(json.dumps(obj, ensure_ascii=False) + "\n")
+            summary = dict(self.summary_line or {})
+            version_text = self.version_input.text().strip()
+            if version_text:
+                try:
+                    summary["version"] = int(float(version_text))
+                except ValueError:
+                    QMessageBox.warning(self, "警告", f"version 必须是整数，当前值：{version_text}")
+                    return
+            else:
+                summary.pop("version", None)
+            import_text = self.import_input.text().strip()
+            if import_text:
+                try:
+                    summary["import"] = int(import_text)
+                except ValueError:
+                    QMessageBox.warning(self, "警告", f"import 参数必须是整数，当前值：{import_text}")
+                    return
+            else:
+                summary.pop("import", None)
 
-            # 添加原始 JSONL 的 summary 行（更新 import 参数）
-            with open(self.jsonl_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line.strip())
-                        if "motions" in obj or "expressions" in obj:
-                            # 更新 import 参数
-                            import_text = self.import_input.text().strip()
-                            if import_text:
-                                try:
-                                    obj["import"] = int(import_text)
-                                except ValueError:
-                                    QMessageBox.warning(self, "警告", f"import 参数必须是整数，当前值：{import_text}")
-                                    return
-                            elif "import" in obj:
-                                # 如果输入框为空，删除 import 字段
-                                del obj["import"]
-                            lines.append(json.dumps(obj, ensure_ascii=False) + "\n")
-                    except:
-                        continue
+            text = stringify_composite_jsonl(self.data, summary)
 
             with open(save_path, "w", encoding="utf-8") as f:
-                f.writelines(lines)
+                f.write(text + "\n")
 
             QMessageBox.information(self, "保存成功", f"文件已保存为：{save_path}")
         except Exception as e:

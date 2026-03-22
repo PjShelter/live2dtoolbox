@@ -5,6 +5,8 @@ import json
 from collections import defaultdict
 from typing import List
 
+from utils.composite_jsonl import stringify_composite_jsonl
+
 
 def is_valid_live2d_json(file_path):
     try:
@@ -51,67 +53,64 @@ def collect_jsons_to_jsonl(root_dir, output_path, id_prefix, base_folder_name, s
     index = 0
     records = []
     motions_by_name = defaultdict(int)
-    expressions_by_name = set()
-    index1_json_path = None
+    expressions_by_name = []
+    expression_seen = set()
 
-    with open(output_path, 'w', encoding='utf-8') as outfile:
-        for relative_path_with_file in selected_relative_paths:
-            # Construct the absolute path using os.path.join.
-            # os.path.normpath will clean up redundant slashes and ensure
-            # platform-appropriate separators.
-            abs_path = os.path.normpath(os.path.join(root_dir, relative_path_with_file))
+    for relative_path_with_file in selected_relative_paths:
+        abs_path = os.path.normpath(os.path.join(root_dir, relative_path_with_file))
+        folder_part = os.path.dirname(relative_path_with_file).replace("\\", "/")
+        if not folder_part:
+            folder_part = "."
 
-            # Extract the actual folder name from the relative path for the "folder" field
-            # e.g., "爱音比心/爱音.model.json" -> "爱音比心"
-            folder_part = os.path.dirname(relative_path_with_file).replace("\\", "/") # Ensure folder name uses forward slashes in JSONL
-            if not folder_part: # If the file is directly in root_dir, folder_part would be empty
-                folder_part = "." # Or you can use a placeholder like "root" or ""
-
-
-            record = {
-                "index": index,
-                "id": f"{id_prefix}{index}",
-                "path": relative_path_with_file, # Keep relative path with forward slashes for JSONL output
-                "folder": folder_part
-            }
-            outfile.write(json.dumps(record, ensure_ascii=False) + '\n')
-            records.append(record)
-
-            try:
-                # Use the normalized absolute path to open the file
-                with open(abs_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-
-                motions = data.get("motions", {})
-                for motion_name in motions:
-                    motions_by_name[motion_name] += 1
-
-                expressions = data.get("expressions", [])
-                for exp in expressions:
-                    if isinstance(exp, dict) and "name" in exp:
-                        expressions_by_name.add(exp["name"])
-            except Exception as e:
-                print(f"❌ JSON解析失败: {abs_path}, 错误: {e}") # Print abs_path to debug if it fails again
-
-            if index == 1:
-                index1_json_path = abs_path # Store the normalized absolute path
-
-            index += 1
-
-        # motions: 必须所有模型都有的
-        required_count = len(records)
-        filtered_motion_names = sorted([
-            name for name, count in motions_by_name.items()
-            if count == required_count
-        ])
-        filtered_expression_names = sorted(list(expressions_by_name))
-
-        # 添加 motions + expressions 行
-        meta_record = {
-            "motions": filtered_motion_names,
-            "expressions": filtered_expression_names
+        record = {
+            "index": index,
+            "id": f"{id_prefix}{index}",
+            "path": relative_path_with_file.replace("\\", "/"),
+            "folder": folder_part
         }
-        outfile.write(json.dumps(meta_record, ensure_ascii=False) + '\n')
+        records.append(record)
+
+        try:
+            with open(abs_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            motions = data.get("motions", {})
+            for motion_name in motions:
+                motions_by_name[motion_name] += 1
+
+            expressions = data.get("expressions", [])
+            for exp in expressions:
+                if isinstance(exp, dict) and "name" in exp:
+                    name = exp["name"]
+                    if name not in expression_seen:
+                        expression_seen.add(name)
+                        expressions_by_name.append(name)
+                elif isinstance(exp, str) and exp.strip():
+                    name = exp.strip()
+                    if name not in expression_seen:
+                        expression_seen.add(name)
+                        expressions_by_name.append(name)
+        except Exception as e:
+            print(f"❌ JSON解析失败: {abs_path}, 错误: {e}")
+
+        index += 1
+
+    required_count = len(records)
+    filtered_motion_names = [
+        name for name, count in motions_by_name.items()
+        if count == required_count
+    ]
+    filtered_expression_names = list(expressions_by_name)
+
+    text = stringify_composite_jsonl(
+        records,
+        {
+            "motions": filtered_motion_names,
+            "expressions": filtered_expression_names,
+        },
+    )
+    with open(output_path, 'w', encoding='utf-8') as outfile:
+        outfile.write(text + '\n')
 
 
 
@@ -186,9 +185,7 @@ def conf_to_jsonl_with_summary(conf_path, figure_root_dir):
 
     jsonl_output_path = os.path.join(output_dir, f"{name}.jsonl")
     with open(jsonl_output_path, "w", encoding="utf-8") as f:
-        for line in jsonl_lines:
-            f.write(json.dumps(line, ensure_ascii=False) + "\n")
-        f.write(json.dumps(summary, ensure_ascii=False) + "\n")
+        f.write(stringify_composite_jsonl(jsonl_lines, summary) + "\n")
 
     return jsonl_output_path
 
@@ -314,8 +311,6 @@ def wmdl_to_jsonl(wmdl_path, figure_root_dir=None):
 
     output_path = os.path.join(os.path.dirname(wmdl_path), f"{name}.jsonl")
     with open(output_path, "w", encoding="utf-8") as f:
-        for entry in jsonl_lines:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        f.write(json.dumps(summary, ensure_ascii=False) + "\n")
+        f.write(stringify_composite_jsonl(jsonl_lines, summary) + "\n")
 
     return output_path
